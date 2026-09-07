@@ -2,27 +2,34 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { api, DEFAULT_ROTH, type RothRequest, type RothResult, type TaxSource } from '@/src/lib/api';
+import {
+  api,
+  DEFAULT_CONVERSION_TAX,
+  type ConversionTaxRequest,
+  type ConversionTaxResult,
+} from '@/src/lib/api';
 import { money, percent } from '@/src/lib/format';
-import { RothChart } from '@/src/components/RothChart';
+import { RothTorpedoChart } from '@/src/components/RothTorpedoChart';
 
 export default function RothPage() {
-  const [input, setInput] = useState<RothRequest>(DEFAULT_ROTH);
-  const [result, setResult] = useState<RothResult | null>(null);
+  const [input, setInput] = useState<ConversionTaxRequest>(DEFAULT_CONVERSION_TAX);
+  const [result, setResult] = useState<ConversionTaxResult | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
-      api.rothAnalyze(input).then(setResult).catch(() => setResult(null));
+      api.conversionTaxCost(input).then(setResult).catch(() => setResult(null));
     }, 250);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
   }, [input]);
 
-  const set = <K extends keyof RothRequest>(key: K) => (value: RothRequest[K]) =>
+  const set = <K extends keyof ConversionTaxRequest>(key: K) => (value: ConversionTaxRequest[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }));
 
-  const fromOutside = input.taxPaidFrom === 'OUTSIDE';
+  const married = input.filingStatus === 'MARRIED_JOINT';
+  // Effective rate meaningfully above the bracket ⇒ a torpedo is in play.
+  const torpedo = result != null && result.effectiveMarginalRate - result.nominalTopBracket > 0.01;
 
   return (
     <div className="space-y-8">
@@ -30,83 +37,95 @@ export default function RothPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Roth conversion analyzer</h1>
           <p className="mt-1 text-sm opacity-70">
-            Convert to Roth now, or leave it to grow tax-deferred?
+            The real tax cost of converting this year — computed from your whole return.
           </p>
         </div>
-        <Link href="/" className="text-sm underline underline-offset-4">← Dashboard</Link>
+        <Link href="/roth/lifetime" className="text-sm underline underline-offset-4">Lifetime strategy →</Link>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
         {/* Inputs */}
         <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-          <NumberField label="Amount to convert" value={input.conversionAmount}
-            onChange={set('conversionAmount')} min={0} step={5000} prefix="$" />
-          <PercentField label="Current marginal tax rate" value={input.currentMarginalRate}
-            onChange={set('currentMarginalRate')} max={50} />
-          <PercentField label="Expected retirement tax rate" value={input.retirementMarginalRate}
-            onChange={set('retirementMarginalRate')} max={50} />
-          <PercentField label="Expected annual return" value={input.annualReturn}
-            onChange={set('annualReturn')} max={20} />
-          <NumberField label="Years until withdrawal" value={input.years}
-            onChange={set('years')} min={1} max={60} />
-
           <div className="text-sm">
-            <span className="mb-1 block opacity-70">Pay the conversion tax from</span>
+            <span className="mb-1 block opacity-70">Filing status</span>
             <div className="grid grid-cols-2 gap-2">
-              <Choice label="Outside funds" active={fromOutside} onClick={() => set('taxPaidFrom')('OUTSIDE')} />
-              <Choice label="The conversion" active={!fromOutside} onClick={() => set('taxPaidFrom')('CONVERSION')} />
+              <Choice label="Married joint" active={married} onClick={() => set('filingStatus')('MARRIED_JOINT')} />
+              <Choice label="Single" active={!married} onClick={() => set('filingStatus')('SINGLE')} />
             </div>
-            <span className="mt-1 block text-xs opacity-45">
-              {fromOutside
-                ? 'Full amount lands in the Roth; tax comes from taxable savings.'
-                : 'Tax is withheld from the amount, so less lands in the Roth.'}
-            </span>
           </div>
 
-          {fromOutside && (
-            <PercentField label="Taxable account tax drag" value={input.taxableDragRate}
-              onChange={set('taxableDragRate')} max={40}
-              hint="Share of taxable growth lost to tax yearly. Why paying from outside helps." />
-          )}
+          <div className={married ? 'grid grid-cols-2 gap-3' : ''}>
+            <NumberField label="Your age" value={input.age} onChange={set('age')} min={40} max={100} />
+            {married && <NumberField label="Spouse age" value={input.spouseAge} onChange={set('spouseAge')} min={40} max={100} />}
+          </div>
+
+          <NumberField label="Annual Social Security" value={input.annualSocialSecurity}
+            onChange={set('annualSocialSecurity')} min={0} step={1000} prefix="$"
+            hint="Gross benefits. 0 if not yet claiming." />
+          <NumberField label="Other ordinary income" value={input.otherOrdinaryIncome}
+            onChange={set('otherOrdinaryIncome')} min={0} step={1000} prefix="$"
+            hint="Pensions, interest, wages, existing RMDs — before any conversion." />
+          <NumberField label="Qualified dividends & long-term gains" value={input.qualifiedIncome}
+            onChange={set('qualifiedIncome')} min={0} step={1000} prefix="$" />
+          <NumberField label="Amount to convert" value={input.conversionAmount}
+            onChange={set('conversionAmount')} min={0} step={5000} prefix="$" />
         </form>
 
         {/* Results */}
         <div className="space-y-6">
           {result && (
             <>
-              <div className={`rounded-lg border p-4 ${
-                result.convertWins ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-amber-500/40 bg-amber-500/10'
-              }`}>
-                <div className="text-xs uppercase tracking-wide opacity-60">Bottom line</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  {result.convertWins
-                    ? `Converting wins by ${money(Math.abs(result.advantage))}`
-                    : `Not converting wins by ${money(Math.abs(result.advantage))}`}
+              <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
+                <div className="text-xs uppercase tracking-wide opacity-60">
+                  Converting {money(result.conversionAmount)} costs
                 </div>
-                <p className="mt-1 text-sm opacity-70">
-                  After {result.years} years, converting is worth {money(result.convertEndValue)} after tax
-                  vs {money(result.noConvertEndValue)} if you don&apos;t — a{' '}
-                  {money(Math.abs(result.advantage))} {result.convertWins ? 'edge' : 'shortfall'}. Converting
-                  also removes future required minimum distributions on this money (not counted above).
-                </p>
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="text-3xl font-semibold">{money(result.conversionTax)}</span>
+                  <span className="text-lg opacity-70">
+                    = {percent(result.effectiveMarginalRate)} effective rate
+                  </span>
+                </div>
+                {torpedo ? (
+                  <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm">
+                    ⚠️ <strong>Social Security tax torpedo.</strong> Your top bracket is only{' '}
+                    {percent(result.nominalTopBracket)}, but this conversion pulls{' '}
+                    <strong>{money(result.extraSsTaxed)}</strong> of Social Security into taxable income —
+                    pushing your real rate to <strong>{percent(result.effectiveMarginalRate)}</strong>.
+                    Converting less, or before you claim Social Security, avoids much of this.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm opacity-70">
+                    Your top bracket on the last converted dollar is {percent(result.nominalTopBracket)}.
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <Stat label="Tax due now" value={money(result.conversionTax)} hint="at your current rate" />
-                <Stat label="Lands in Roth" value={money(result.rothStartValue)}
-                  hint={result.taxPaidFrom === 'OUTSIDE' ? 'full amount' : 'after withheld tax'} />
-                <Stat label="Break-even future rate" value={percent(result.breakevenRetirementRate)}
-                  hint="convert if you expect higher" />
+                <Stat label="Federal tax before" value={money(result.taxBefore)} />
+                <Stat label="Federal tax after" value={money(result.taxAfter)} />
+                <Stat label="Extra SS taxed" value={money(result.extraSsTaxed)}
+                  hint={`taxable SS ${money(result.taxableSsBefore)} → ${money(result.taxableSsAfter)}`} />
               </div>
 
               <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
-                <div className="mb-2 text-sm font-medium">After-tax value over time</div>
-                <RothChart points={result.points} />
+                <div className="mb-2 text-sm font-medium">Marginal rate as you convert more</div>
+                <RothTorpedoChart points={result.points} nominalBracket={result.nominalTopBracket} />
+                <p className="mt-2 text-xs opacity-55">
+                  Where the green line rises above the nominal bracket, each extra dollar also makes some
+                  Social Security (or capital gains) taxable. Once the line drops back, the torpedo is
+                  spent — further conversions cost only the bracket rate.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 text-sm">
+                <Breakdown label="AGI before → after" value={`${money(result.agiBefore)} → ${money(result.agiAfter)}`} />
+                <Breakdown label="Blended rate on conversion" value={percent(result.effectiveMarginalRate)} />
               </div>
 
               <p className="text-xs opacity-50">
-                Compares after-tax ending wealth on equal footing. Ignores RMDs (which conversions reduce),
-                IRMAA surcharges, state taxes, the 5-year rule, and future bracket changes. Not tax advice.
+                Uses {'2025'} federal brackets, the standard deduction (incl. the age-65 addition), the IRS
+                Social Security worksheet, and capital-gains stacking. Excludes state tax, IRMAA Medicare
+                surcharges, NIIT, AMT, and credits. Not tax advice.
               </p>
             </>
           )}
@@ -126,26 +145,30 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
+function Breakdown({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between rounded-md border border-black/10 px-3 py-2 dark:border-white/10">
+      <span className="opacity-60">{label}</span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
 function Choice({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <button type="button" onClick={onClick}
       className={`rounded-md border px-3 py-2 text-sm ${
-        active
-          ? 'border-transparent'
-          : 'border-black/15 opacity-70 hover:opacity-100 dark:border-white/15'
+        active ? 'border-transparent' : 'border-black/15 opacity-70 hover:opacity-100 dark:border-white/15'
       }`}
-      style={active ? { background: 'var(--foreground)', color: 'var(--background)' } : undefined}
-    >
+      style={active ? { background: 'var(--foreground)', color: 'var(--background)' } : undefined}>
       {label}
     </button>
   );
 }
 
-function NumberField({ label, value, onChange, min, max, step = 1, prefix }: {
+function NumberField({ label, value, onChange, min, max, step = 1, prefix, hint }: {
   label: string; value: number; onChange: (v: number) => void;
-  min?: number; max?: number; step?: number; prefix?: string;
+  min?: number; max?: number; step?: number; prefix?: string; hint?: string;
 }) {
   return (
     <label className="block text-sm">
@@ -155,23 +178,6 @@ function NumberField({ label, value, onChange, min, max, step = 1, prefix }: {
         <input type="number" value={Number.isFinite(value) ? value : ''} min={min} max={max} step={step}
           onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
           className="w-full bg-transparent px-3 py-2 outline-none" />
-      </div>
-    </label>
-  );
-}
-
-/** Edits a decimal rate (0.22) as a percent (22). */
-function PercentField({ label, value, onChange, max = 30, hint }: {
-  label: string; value: number; onChange: (v: number) => void; max?: number; hint?: string;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block opacity-70">{label}</span>
-      <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
-        <input type="number" value={Math.round(value * 1000) / 10} min={0} max={max} step={0.5}
-          onChange={(e) => onChange((e.target.value === '' ? 0 : Number(e.target.value)) / 100)}
-          className="w-full bg-transparent px-3 py-2 outline-none" />
-        <span className="pr-3 text-sm opacity-50">%</span>
       </div>
       {hint && <span className="mt-1 block text-xs opacity-45">{hint}</span>}
     </label>

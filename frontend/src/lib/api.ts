@@ -159,6 +159,131 @@ export interface RothResult {
   points: RothPoint[];
 }
 
+export type FilingStatus = 'SINGLE' | 'MARRIED_JOINT';
+
+export interface ConversionTaxRequest {
+  filingStatus: FilingStatus;
+  age: number;
+  spouseAge: number;
+  annualSocialSecurity: number;
+  otherOrdinaryIncome: number;
+  qualifiedIncome: number;
+  conversionAmount: number;
+}
+
+export interface ConversionRatePoint {
+  amount: number;
+  marginalRate: number;
+  cumulativeRate: number;
+}
+
+export interface ConversionTaxResult {
+  conversionAmount: number;
+  taxBefore: number;
+  taxAfter: number;
+  conversionTax: number;
+  effectiveMarginalRate: number;
+  nominalTopBracket: number;
+  taxableSsBefore: number;
+  taxableSsAfter: number;
+  extraSsTaxed: number;
+  agiBefore: number;
+  agiAfter: number;
+  points: ConversionRatePoint[];
+}
+
+export interface LifetimeRothRequest {
+  filingStatus: FilingStatus;
+  currentAge: number;
+  spouseAge: number;
+  planThroughAge: number;
+  tradBalance: number;
+  rothBalance: number;
+  taxableBalance: number;
+  annualPension: number;
+  annualSocialSecurity: number;
+  ssClaimAge: number;
+  investmentReturn: number;
+  inflationRate: number;
+  taxableYieldRate: number;
+  stateTaxRate: number;
+  stateTaxesSs: boolean;
+  terminalTradRate: number;
+  convStartAge: number;
+  convEndAge: number;
+  targetTaxableIncome: number;
+  maxAnnualConversion: number;
+}
+
+export interface LifetimeYearPoint {
+  age: number;
+  trad: number;
+  roth: number;
+  taxable: number;
+  rmd: number;
+  conversion: number;
+  ordinaryIncome: number;
+  taxableSs: number;
+  federalTax: number;
+  stateTax: number;
+  irmaa: number;
+  magi: number;
+}
+
+export interface LifetimeStrategyOutcome {
+  lifetimeIncomeTax: number;
+  lifetimeIrmaa: number;
+  lifetimeTaxTotal: number;
+  totalConverted: number;
+  endingAfterTaxWealth: number;
+  endingTrad: number;
+  endingRoth: number;
+  endingTaxable: number;
+  points: LifetimeYearPoint[];
+}
+
+export interface LifetimeRothResult {
+  rmdStartAge: number;
+  baseline: LifetimeStrategyOutcome;
+  converted: LifetimeStrategyOutcome;
+  lifetimeTaxSaved: number;
+  endingWealthAdvantage: number;
+  convertRecommended: boolean;
+}
+
+export const DEFAULT_LIFETIME_ROTH: LifetimeRothRequest = {
+  filingStatus: 'MARRIED_JOINT',
+  currentAge: 65,
+  spouseAge: 65,
+  planThroughAge: 92,
+  tradBalance: 1500000,
+  rothBalance: 100000,
+  taxableBalance: 300000,
+  annualPension: 0,
+  annualSocialSecurity: 50000,
+  ssClaimAge: 67,
+  investmentReturn: 0.06,
+  inflationRate: 0.025,
+  taxableYieldRate: 0.02,
+  stateTaxRate: 0,
+  stateTaxesSs: false,
+  terminalTradRate: 0.24,
+  convStartAge: 65,
+  convEndAge: 74,
+  targetTaxableIncome: 96950,
+  maxAnnualConversion: 0,
+};
+
+export const DEFAULT_CONVERSION_TAX: ConversionTaxRequest = {
+  filingStatus: 'MARRIED_JOINT',
+  age: 66,
+  spouseAge: 66,
+  annualSocialSecurity: 40000,
+  otherOrdinaryIncome: 30000,
+  qualifiedIncome: 0,
+  conversionAmount: 40000,
+};
+
 export const DEFAULT_ROTH: RothRequest = {
   conversionAmount: 100000,
   currentMarginalRate: 0.22,
@@ -247,6 +372,14 @@ export const api = {
   ssBreakeven: (r: SsBreakevenRequest) =>
     send<SsBreakeven>('/api/social-security/breakeven', 'POST', r),
 
-  /** Roth conversion analysis — pure calc, no login required. */
+  /** Roth conversion analysis (simple two-rate model) — pure calc, no login required. */
   rothAnalyze: (r: RothRequest) => send<RothResult>('/api/roth/analyze', 'POST', r),
+
+  /** True current-year tax cost of a conversion, from the federal tax engine. */
+  conversionTaxCost: (r: ConversionTaxRequest) =>
+    send<ConversionTaxResult>('/api/roth/tax-cost', 'POST', r),
+
+  /** Multi-year lifetime conversion comparison (no conversions vs. bracket-filling). */
+  lifetimeRoth: (r: LifetimeRothRequest) =>
+    send<LifetimeRothResult>('/api/roth/lifetime', 'POST', r),
 };
