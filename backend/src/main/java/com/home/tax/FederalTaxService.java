@@ -64,15 +64,21 @@ public class FederalTaxService {
 		double ordinaryTax = bracketTax(ordinaryTaxable, TaxConstants.ordinaryBrackets(filing));
 		double capGainsTax = capitalGainsTax(filing, ordinaryTaxable, qualifiedInTaxable, taxableIncome);
 
+		// Net Investment Income Tax: 3.8% of the lesser of net investment income
+		// (here, qualified dividends + gains) or MAGI over the threshold.
+		double niitThreshold = TaxConstants.niitThreshold(filing) * ssThresholdScale;
+		double niit = TaxConstants.NIIT_RATE * Math.min(qualified, Math.max(0, agi - niitThreshold));
+
 		return new FederalTax(
-			round(ordinaryTax + capGainsTax),
+			round(ordinaryTax + capGainsTax + niit),
 			round(agi),
 			round(taxableIncome),
 			round(taxableSs),
 			round(ordinaryTax),
 			round(capGainsTax),
 			round(ordinaryTaxable),
-			marginalOrdinaryRate(ordinaryTaxable, TaxConstants.ordinaryBrackets(filing))
+			marginalOrdinaryRate(ordinaryTaxable, TaxConstants.ordinaryBrackets(filing)),
+			round(niit)
 		);
 	}
 
@@ -146,6 +152,7 @@ public class FederalTaxService {
 	 * @param capitalGainsTax        tax on qualified dividends / long-term gains
 	 * @param ordinaryTaxableIncome  taxable income excluding qualified income
 	 * @param marginalOrdinaryRate   bracket the last ordinary dollar fell in
+	 * @param niit                   Net Investment Income Tax (3.8%) included in totalTax
 	 */
 	public record FederalTax(
 			double totalTax,
@@ -155,5 +162,6 @@ public class FederalTaxService {
 			double ordinaryTax,
 			double capitalGainsTax,
 			double ordinaryTaxableIncome,
-			double marginalOrdinaryRate) {}
+			double marginalOrdinaryRate,
+			double niit) {}
 }

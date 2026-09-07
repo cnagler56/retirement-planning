@@ -10,6 +10,7 @@ import com.home.Domain.LifetimeRothRequest;
 import com.home.Domain.LifetimeRothResult;
 import com.home.Domain.LifetimeRothResult.StrategyOutcome;
 import com.home.Domain.LifetimeRothResult.YearPoint;
+import com.home.tax.AcaSubsidy;
 import com.home.tax.FederalTaxService;
 import com.home.tax.FederalTaxService.FederalTax;
 import com.home.tax.IrmaaTable;
@@ -98,42 +99,62 @@ public class LifetimeRothService {
 		double target = nn(req.targetTaxableIncome(), 0);
 		double maxConv = nn(req.maxAnnualConversion(), 0); // 0 = uncapped
 
-		double lifetimeIncomeTax = 0, lifetimeIrmaa = 0, totalConverted = 0;
+		int firstDeathAge = req.firstDeathAge() != null && req.firstDeathAge() > 0 ? req.firstDeathAge() : Integer.MAX_VALUE;
+		double survivorSs = nn(req.survivorSocialSecurity(), ssBenefit);
+		boolean acaCoverage = Boolean.TRUE.equals(req.acaCoverage());
+		int acaHousehold = req.acaHouseholdSize() != null && req.acaHouseholdSize() > 0 ? req.acaHouseholdSize() : 2;
+		double acaBenchmark = nn(req.acaBenchmarkAnnual(), 0);
+
+		double lifetimeIncomeTax = 0, lifetimeIrmaa = 0, lifetimeAca = 0, totalConverted = 0;
 		List<YearPoint> points = new ArrayList<>();
 
 		for (int age = currentAge; age <= planThrough; age++) {
 			int t = age - currentAge;
 			double realScale = Math.pow(1 + inflation, -t); // non-indexed thresholds shrink in real terms
 			int spouseAge = spouseAge0 + t;
-			int over65 = (age >= 65 ? 1 : 0) + (filing == Filing.MARRIED_JOINT && spouseAge >= 65 ? 1 : 0);
+
+			// After the first death the survivor files Single (the "widow's penalty").
+			boolean widowed = filing == Filing.MARRIED_JOINT && age >= firstDeathAge;
+			Filing effFiling = widowed ? Filing.SINGLE : filing;
+			int over65 = widowed
+				? (age >= 65 ? 1 : 0)
+				: (age >= 65 ? 1 : 0) + (filing == Filing.MARRIED_JOINT && spouseAge >= 65 ? 1 : 0);
 			int onMedicare = over65;
 
-			double ss = age >= ssClaimAge ? ssBenefit : 0;
+			double ss = widowed ? survivorSs : (age >= ssClaimAge ? ssBenefit : 0);
 			double qualified = taxable * yieldRate;         // realized dividends
 			double rmd = RmdTable.required(age, birthYear, trad);
 
 			double conversion = 0;
 			if (doConvert && age >= convStart && age <= convEnd && target > 0 && trad - rmd > 0) {
-				conversion = fillToTarget(filing, over65, pension + rmd, ss, qualified, realScale, target);
+				conversion = fillToTarget(effFiling, over65, pension + rmd, ss, qualified, realScale, target);
 				conversion = Math.min(conversion, trad - rmd);
 				if (maxConv > 0) conversion = Math.min(conversion, maxConv);
 				conversion = Math.max(0, conversion);
 			}
 
 			double ordinary = pension + rmd + conversion;
-			FederalTax f = federal.compute(filing, over65, ordinary, ss, qualified, realScale);
+			FederalTax f = federal.compute(effFiling, over65, ordinary, ss, qualified, realScale);
 
 			double stateBase = Math.max(0, f.taxableIncome() - (stateTaxesSs ? 0 : f.taxableSocialSecurity()));
 			double stateTax = stateRate * stateBase;
 			double magi = f.agi();
-			double irmaa = IrmaaTable.surcharge(filing, magi, onMedicare, realScale);
+			double irmaa = IrmaaTable.surcharge(effFiling, magi, onMedicare, realScale);
+
+			// ACA premium subsidy for pre-Medicare years (a conversion erodes it).
+			double aca = 0;
+			if (acaCoverage && acaBenchmark > 0 && age < 65) {
+				aca = AcaSubsidy.premiumTaxCredit(magi, widowed ? 1 : acaHousehold, acaBenchmark);
+			}
+
 			double totalTax = f.totalTax() + stateTax + irmaa;
 
-			// Move money: RMD and conversion leave pre-tax; conversion → Roth;
-			// RMD is reinvested in taxable; all taxes paid from taxable (then Roth, then pre-tax).
+			// Move money: RMD and conversion leave pre-tax; conversion → Roth; RMD is
+			// reinvested in taxable; the ACA subsidy is premium money you keep invested;
+			// all taxes paid from taxable (then Roth, then pre-tax).
 			trad -= (rmd + conversion);
 			roth += conversion;
-			taxable += rmd;
+			taxable += rmd + aca;
 			double owed = totalTax;
 			double fromTaxable = Math.min(taxable, owed);
 			taxable -= fromTaxable; owed -= fromTaxable;
@@ -142,6 +163,7 @@ public class LifetimeRothService {
 
 			lifetimeIncomeTax += f.totalTax() + stateTax;
 			lifetimeIrmaa += irmaa;
+			lifetimeAca += aca;
 			totalConverted += conversion;
 
 			// Grow to end of year.
@@ -151,7 +173,7 @@ public class LifetimeRothService {
 
 			points.add(new YearPoint(age, round(trad), round(roth), round(taxable),
 				round(rmd), round(conversion), round(ordinary), round(f.taxableSocialSecurity()),
-				round(f.totalTax()), round(stateTax), round(irmaa), round(magi)));
+				round(f.totalTax()), round(stateTax), round(irmaa), round(aca), round(magi), widowed));
 		}
 
 		double endingWealth = roth + taxable + trad * (1 - terminalRate);
@@ -159,6 +181,7 @@ public class LifetimeRothService {
 		return new StrategyOutcome(
 			round(lifetimeIncomeTax),
 			round(lifetimeIrmaa),
+			round(lifetimeAca),
 			round(lifetimeIncomeTax + lifetimeIrmaa),
 			round(totalConverted),
 			round(endingWealth),

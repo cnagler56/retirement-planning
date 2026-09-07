@@ -213,6 +213,11 @@ export interface LifetimeRothRequest {
   convEndAge: number;
   targetTaxableIncome: number;
   maxAnnualConversion: number;
+  firstDeathAge: number;
+  survivorSocialSecurity: number;
+  acaCoverage: boolean;
+  acaHouseholdSize: number;
+  acaBenchmarkAnnual: number;
 }
 
 export interface LifetimeYearPoint {
@@ -227,12 +232,15 @@ export interface LifetimeYearPoint {
   federalTax: number;
   stateTax: number;
   irmaa: number;
+  acaSubsidy: number;
   magi: number;
+  widowed: boolean;
 }
 
 export interface LifetimeStrategyOutcome {
   lifetimeIncomeTax: number;
   lifetimeIrmaa: number;
+  lifetimeAcaSubsidy: number;
   lifetimeTaxTotal: number;
   totalConverted: number;
   endingAfterTaxWealth: number;
@@ -272,6 +280,11 @@ export const DEFAULT_LIFETIME_ROTH: LifetimeRothRequest = {
   convEndAge: 74,
   targetTaxableIncome: 96950,
   maxAnnualConversion: 0,
+  firstDeathAge: 0,
+  survivorSocialSecurity: 33000,
+  acaCoverage: false,
+  acaHouseholdSize: 2,
+  acaBenchmarkAnnual: 18000,
 };
 
 export const DEFAULT_CONVERSION_TAX: ConversionTaxRequest = {

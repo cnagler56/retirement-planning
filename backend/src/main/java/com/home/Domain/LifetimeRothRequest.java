@@ -25,6 +25,14 @@ package com.home.Domain;
  * @param convEndAge          last age to convert
  * @param targetTaxableIncome fill ordinary taxable income up to this each conversion year
  * @param maxAnnualConversion optional cap on the yearly conversion (0 = no cap)
+ * @param firstDeathAge       age (of the primary's timeline) at which the first spouse
+ *                            dies; afterward the survivor files Single on nearly the same
+ *                            income — the "widow's penalty" (0 = not modeled)
+ * @param survivorSocialSecurity the survivor's continuing annual benefit (the larger of
+ *                            the two) after the first death
+ * @param acaCoverage         whether the household buys ACA marketplace insurance pre-65
+ * @param acaHouseholdSize    household size for the Federal Poverty Level calculation
+ * @param acaBenchmarkAnnual  annual cost of the benchmark (2nd-lowest silver) plan
  */
 public record LifetimeRothRequest(
 		String filingStatus,
@@ -46,5 +54,10 @@ public record LifetimeRothRequest(
 		Integer convStartAge,
 		Integer convEndAge,
 		Double targetTaxableIncome,
-		Double maxAnnualConversion) {
+		Double maxAnnualConversion,
+		Integer firstDeathAge,
+		Double survivorSocialSecurity,
+		Boolean acaCoverage,
+		Integer acaHouseholdSize,
+		Double acaBenchmarkAnnual) {
 }

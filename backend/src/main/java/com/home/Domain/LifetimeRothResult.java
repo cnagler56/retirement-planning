@@ -35,6 +35,7 @@ public record LifetimeRothResult(
 	public record StrategyOutcome(
 			double lifetimeIncomeTax,
 			double lifetimeIrmaa,
+			double lifetimeAcaSubsidy,
 			double lifetimeTaxTotal,
 			double totalConverted,
 			double endingAfterTaxWealth,
@@ -69,5 +70,7 @@ public record LifetimeRothResult(
 			double federalTax,
 			double stateTax,
 			double irmaa,
-			double magi) {}
+			double acaSubsidy,
+			double magi,
+			boolean widowed) {}
 }

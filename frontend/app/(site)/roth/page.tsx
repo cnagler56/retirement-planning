@@ -123,9 +123,9 @@ export default function RothPage() {
               </div>
 
               <p className="text-xs opacity-50">
-                Uses {'2025'} federal brackets, the standard deduction (incl. the age-65 addition), the IRS
-                Social Security worksheet, and capital-gains stacking. Excludes state tax, IRMAA Medicare
-                surcharges, NIIT, AMT, and credits. Not tax advice.
+                Uses 2025 federal brackets, the standard deduction (incl. the age-65 addition), the IRS
+                Social Security worksheet, capital-gains stacking, and the 3.8% Net Investment Income Tax.
+                Excludes state tax, IRMAA, AMT, and credits (see the lifetime strategy for those). Not tax advice.
               </p>
             </>
           )}

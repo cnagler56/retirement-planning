@@ -52,6 +52,15 @@ public final class TaxConstants {
 	public static final double LTCG_0_TOP_MARRIED = 96_700;
 	public static final double LTCG_15_TOP_MARRIED = 600_050;
 
+	// Net Investment Income Tax (3.8%) MAGI thresholds. NOT inflation-indexed.
+	public static final double NIIT_RATE = 0.038;
+	public static final double NIIT_THRESHOLD_SINGLE = 200_000;
+	public static final double NIIT_THRESHOLD_MARRIED = 250_000;
+
+	public static double niitThreshold(Filing f) {
+		return f == Filing.MARRIED_JOINT ? NIIT_THRESHOLD_MARRIED : NIIT_THRESHOLD_SINGLE;
+	}
+
 	// Social Security taxability thresholds (provisional income). NOT inflation-indexed.
 	public static final double SS_BASE1_SINGLE = 25_000;
 	public static final double SS_BASE2_SINGLE = 34_000;

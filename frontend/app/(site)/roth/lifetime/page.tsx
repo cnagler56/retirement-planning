@@ -105,6 +105,29 @@ export default function LifetimeRothPage() {
           </div>
           <Num label="Fill taxable income up to" value={input.targetTaxableIncome} onChange={set('targetTaxableIncome')} min={0} step={5000} prefix="$"
             hint="Bracket ceiling to fill each year, e.g. 96,950 = top of 12% (MFJ)." />
+
+          {married && (
+            <>
+              <Section title="Survivor (widow's penalty)" />
+              <div className="grid grid-cols-2 gap-2">
+                <Num label="First death at age" value={input.firstDeathAge} onChange={set('firstDeathAge')} min={0} max={100}
+                  hint="0 = both live to horizon." />
+                <Num label="Survivor's SS" value={input.survivorSocialSecurity} onChange={set('survivorSocialSecurity')} min={0} step={1000} prefix="$" />
+              </div>
+            </>
+          )}
+
+          <Section title="ACA coverage (pre-65)" />
+          <div className="grid grid-cols-2 gap-2">
+            <Choice label="On marketplace" active={input.acaCoverage} onClick={() => set('acaCoverage')(true)} />
+            <Choice label="Not on ACA" active={!input.acaCoverage} onClick={() => set('acaCoverage')(false)} />
+          </div>
+          {input.acaCoverage && (
+            <div className="grid grid-cols-2 gap-2">
+              <Num label="Benchmark premium/yr" value={input.acaBenchmarkAnnual} onChange={set('acaBenchmarkAnnual')} min={0} step={1000} prefix="$" />
+              <Num label="Household size" value={input.acaHouseholdSize} onChange={set('acaHouseholdSize')} min={1} max={10} />
+            </div>
+          )}
         </form>
 
         {/* Results */}
@@ -138,6 +161,24 @@ export default function LifetimeRothPage() {
                   base={result.baseline.endingAfterTaxWealth} conv={result.converted.endingAfterTaxWealth} higherIsBetter />
               </div>
 
+              {input.acaCoverage && result.baseline.lifetimeAcaSubsidy > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <strong>ACA tradeoff:</strong> converting in the pre-65 years forfeits{' '}
+                  {money(result.baseline.lifetimeAcaSubsidy - result.converted.lifetimeAcaSubsidy)} of marketplace
+                  subsidies (you&apos;d keep {money(result.converted.lifetimeAcaSubsidy)} vs{' '}
+                  {money(result.baseline.lifetimeAcaSubsidy)}). That cost is already netted into the wealth
+                  comparison above.
+                </div>
+              )}
+
+              {married && input.firstDeathAge > 0 && (
+                <div className="rounded-md border border-black/10 p-3 text-sm dark:border-white/10">
+                  <strong>Widow&apos;s penalty modeled:</strong> from age {input.firstDeathAge} the survivor files
+                  Single on nearly the same RMDs — compressed brackets and halved IRMAA thresholds. Converting
+                  before then shifts income out of those higher-taxed years.
+                </div>
+              )}
+
               <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
                 <div className="mb-2 text-sm font-medium">After-tax net worth over the plan</div>
                 <LifetimeWealthChart series={series} />
@@ -151,11 +192,11 @@ export default function LifetimeRothPage() {
 
               <p className="text-xs opacity-50">
                 Today&apos;s dollars, {percent(input.investmentReturn)} return, {percent(input.inflationRate)} inflation.
-                Models 2025 federal brackets, RMDs (start age {result.rmdStartAge}), Social Security taxation, and
-                IRMAA — with the non-indexed SS and IRMAA thresholds eroding in real terms over time. Pension and
-                Social Security fund living expenses (tax inputs only); RMDs not needed for spending are reinvested;
-                taxes are paid from the taxable account. Excludes NIIT, AMT, the 5-year rule, and state rules beyond
-                a flat rate. Not tax advice.
+                Models 2025 federal brackets, RMDs (start age {result.rmdStartAge}), Social Security taxation, NIIT,
+                IRMAA, ACA subsidies, the survivor filing-status change, and a flat state tax — with the non-indexed
+                SS/IRMAA/NIIT thresholds eroding in real terms over time. Pension and Social Security fund living
+                expenses (tax inputs only); RMDs not needed for spending are reinvested; taxes are paid from the
+                taxable account. Excludes AMT, the Roth 5-year rule, and state rules beyond a flat rate. Not tax advice.
               </p>
             </>
           )}
