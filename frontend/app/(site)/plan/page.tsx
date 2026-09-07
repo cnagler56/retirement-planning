@@ -5,12 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   DEFAULT_PROFILE,
+  type MonteCarloResult,
   type Projection,
   type RetirementProfile,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { money } from '@/src/lib/format';
+import { money, percent } from '@/src/lib/format';
 import { ProjectionChart } from '@/src/components/ProjectionChart';
+import { MonteCarloChart } from '@/src/components/MonteCarloChart';
 
 const CLAIM_AGES = Array.from({ length: 9 }, (_, i) => 62 + i); // 62..70
 
@@ -18,10 +20,13 @@ export default function PlanPage() {
   const { user } = useUser();
   const [profile, setProfile] = useState<RetirementProfile>(DEFAULT_PROFILE);
   const [projection, setProjection] = useState<Projection | null>(null);
+  const [monteCarlo, setMonteCarlo] = useState<MonteCarloResult | null>(null);
+  const [volatility, setVolatility] = useState(0.12);
   const [loadedSaved, setLoadedSaved] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mcDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!user || loadedSaved) return;
@@ -38,6 +43,14 @@ export default function PlanPage() {
     }, 250);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
   }, [profile]);
+
+  useEffect(() => {
+    if (mcDebounce.current) clearTimeout(mcDebounce.current);
+    mcDebounce.current = setTimeout(() => {
+      api.monteCarlo(profile, volatility).then(setMonteCarlo).catch(() => setMonteCarlo(null));
+    }, 350);
+    return () => { if (mcDebounce.current) clearTimeout(mcDebounce.current); };
+  }, [profile, volatility]);
 
   const set = useCallback(
     (key: keyof RetirementProfile) => (value: number) => {
@@ -147,6 +160,48 @@ export default function PlanPage() {
                 <Breakdown label="Annual spending goal" value={money(projection.annualSpendingGoal)} />
               </div>
             </>
+          )}
+
+          {monteCarlo && (
+            <div className="space-y-4 rounded-lg border border-black/10 p-4 dark:border-white/10">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide opacity-60">
+                    Monte Carlo · {monteCarlo.trials.toLocaleString()} random markets
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className={`text-3xl font-semibold ${
+                      monteCarlo.successProbability >= 0.85 ? 'text-emerald-600 dark:text-emerald-400'
+                      : monteCarlo.successProbability >= 0.7 ? '' : 'text-red-500'
+                    }`}>
+                      {Math.round(monteCarlo.successProbability * 100)}%
+                    </span>
+                    <span className="text-sm opacity-70">chance your money lasts to {profile.planThroughAge}</span>
+                  </div>
+                </div>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs opacity-70">Return volatility</span>
+                  <div className="flex items-center rounded-md border border-black/15 dark:border-white/15">
+                    <input type="number" value={Math.round(volatility * 1000) / 10} min={0} max={30} step={0.5}
+                      onChange={(e) => setVolatility((e.target.value === '' ? 0 : Number(e.target.value)) / 100)}
+                      className="w-20 bg-transparent px-2 py-2 outline-none" />
+                    <span className="pr-2 text-sm opacity-50">%</span>
+                  </div>
+                </label>
+              </div>
+
+              <MonteCarloChart points={monteCarlo.points} />
+
+              <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                <Breakdown label="Poor market (10th %)" value={money(monteCarlo.p10EndingBalance)} />
+                <Breakdown label="Median ending" value={money(monteCarlo.medianEndingBalance)} />
+                <Breakdown label="Strong market (90th %)" value={money(monteCarlo.p90EndingBalance)} />
+              </div>
+              <p className="text-xs opacity-50">
+                Each year&apos;s return is drawn at random around your {percent(profile.annualReturnRate)} expected
+                return with {percent(volatility)} volatility, capturing sequence-of-returns risk. Today&apos;s dollars.
+              </p>
+            </div>
           )}
         </div>
       </div>

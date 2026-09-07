@@ -51,6 +51,24 @@ export interface ProjectionPoint {
   phase: 'accumulation' | 'retirement';
 }
 
+export interface MonteCarloBand {
+  age: number;
+  p10: number;
+  p50: number;
+  p90: number;
+}
+
+export interface MonteCarloResult {
+  successProbability: number;
+  trials: number;
+  volatility: number;
+  medianEndingBalance: number;
+  p10EndingBalance: number;
+  p90EndingBalance: number;
+  medianDepletionAge: number | null;
+  points: MonteCarloBand[];
+}
+
 /** All dollar figures are in today's (inflation-adjusted) dollars. */
 export interface Projection {
   points: ProjectionPoint[];
@@ -380,6 +398,10 @@ export const api = {
 
   /** Compute a projection from inputs without saving — the live "what-if" preview. */
   computeProjection: (p: RetirementProfile) => send<Projection>('/api/projection', 'POST', p),
+
+  /** Monte Carlo run of a plan — probability of success and percentile bands. */
+  monteCarlo: (profile: RetirementProfile, volatility: number, trials = 1000) =>
+    send<MonteCarloResult>('/api/projection/montecarlo', 'POST', { profile, volatility, trials }),
 
   /** Social Security claiming breakeven — pure calc, no login required. */
   ssBreakeven: (r: SsBreakevenRequest) =>

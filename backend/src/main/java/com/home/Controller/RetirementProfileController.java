@@ -11,10 +11,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.home.Domain.MonteCarloRequest;
+import com.home.Domain.MonteCarloResult;
 import com.home.Domain.ProjectionResult;
 import com.home.Domain.RetirementProfile;
 import com.home.Domain.User;
 import com.home.Repository.RetirementProfileRepository;
+import com.home.Service.MonteCarloService;
 import com.home.Service.ProjectionService;
 import com.home.Service.SessionService;
 
@@ -33,12 +36,15 @@ public class RetirementProfileController {
 
 	private final RetirementProfileRepository repo;
 	private final ProjectionService projectionService;
+	private final MonteCarloService monteCarloService;
 	private final SessionService sessionService;
 
 	public RetirementProfileController(RetirementProfileRepository repo,
-			ProjectionService projectionService, SessionService sessionService) {
+			ProjectionService projectionService, MonteCarloService monteCarloService,
+			SessionService sessionService) {
 		this.repo = repo;
 		this.projectionService = projectionService;
+		this.monteCarloService = monteCarloService;
 		this.sessionService = sessionService;
 	}
 
@@ -75,6 +81,12 @@ public class RetirementProfileController {
 	@PostMapping("/api/projection")
 	public ProjectionResult preview(@RequestBody RetirementProfile body) {
 		return projectionService.compute(body);
+	}
+
+	/** Monte Carlo run of a plan — probability of success and percentile bands. */
+	@PostMapping("/api/projection/montecarlo")
+	public MonteCarloResult monteCarlo(@RequestBody MonteCarloRequest body) {
+		return monteCarloService.run(body);
 	}
 
 	/** Projection from the signed-in user's saved profile. */
