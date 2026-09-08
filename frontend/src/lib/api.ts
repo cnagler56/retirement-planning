@@ -40,6 +40,14 @@ export interface RetirementProfile {
   ssClaimAge: number;
   /** Age to run the plan through (life expectancy for planning). */
   planThroughAge: number;
+  /** Shared household facts (captured at signup, reused by every calculator). */
+  filingStatus: FilingStatus;
+  spouseAge: number;
+  tradBalance: number;
+  rothBalance: number;
+  taxableBalance: number;
+  annualPension: number;
+  stateTaxRate: number;
 }
 
 export interface ProjectionPoint {
@@ -144,6 +152,13 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   ssMonthlyAtFra: 2000,
   ssClaimAge: 67,
   planThroughAge: 95,
+  filingStatus: 'MARRIED_JOINT',
+  spouseAge: 35,
+  tradBalance: 40000,
+  rothBalance: 10000,
+  taxableBalance: 0,
+  annualPension: 0,
+  stateTaxRate: 0,
 };
 
 export type TaxSource = 'OUTSIDE' | 'CONVERSION';
@@ -395,6 +410,9 @@ export const api = {
 
   /** Upsert the signed-in user's profile (requires login). */
   saveProfile: (p: RetirementProfile) => send<RetirementProfile>('/api/profile', 'PUT', p),
+
+  /** Remove the server-side profile (when switching to device-only storage). */
+  deleteProfile: () => send<void>('/api/profile', 'DELETE'),
 
   /** Compute a projection from inputs without saving — the live "what-if" preview. */
   computeProjection: (p: RetirementProfile) => send<Projection>('/api/projection', 'POST', p),

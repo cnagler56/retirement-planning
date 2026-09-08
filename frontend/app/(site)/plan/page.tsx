@@ -10,6 +10,7 @@ import {
   type RetirementProfile,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
+import { getStorageMode, loadProfile, saveProfile } from '@/src/lib/profileStore';
 import { money, percent } from '@/src/lib/format';
 import { ProjectionChart } from '@/src/components/ProjectionChart';
 import { MonteCarloChart } from '@/src/components/MonteCarloChart';
@@ -30,7 +31,7 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!user || loadedSaved) return;
-    api.getProfile()
+    loadProfile(user.userId)
       .then((p) => { if (p) setProfile({ ...DEFAULT_PROFILE, ...p }); })
       .catch(() => { /* not saved yet — keep defaults */ })
       .finally(() => setLoadedSaved(true));
@@ -61,10 +62,11 @@ export default function PlanPage() {
   );
 
   async function onSave() {
+    if (!user) return;
     setSaveState('saving');
     setSaveError(null);
     try {
-      const saved = await api.saveProfile(profile);
+      const saved = await saveProfile(profile, getStorageMode(user.userId), user.userId);
       setProfile({ ...DEFAULT_PROFILE, ...saved });
       setSaveState('saved');
     } catch (err) {

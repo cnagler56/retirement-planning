@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -74,7 +75,23 @@ public class RetirementProfileController {
 		profile.setSsMonthlyAtFra(body.getSsMonthlyAtFra());
 		profile.setSsClaimAge(body.getSsClaimAge());
 		profile.setPlanThroughAge(body.getPlanThroughAge());
+		profile.setFilingStatus(body.getFilingStatus());
+		profile.setSpouseAge(body.getSpouseAge());
+		profile.setTradBalance(body.getTradBalance());
+		profile.setRothBalance(body.getRothBalance());
+		profile.setTaxableBalance(body.getTaxableBalance());
+		profile.setAnnualPension(body.getAnnualPension());
+		profile.setStateTaxRate(body.getStateTaxRate());
 		return repo.save(profile);
+	}
+
+	/** Remove the user's server-side profile — used when they switch to device-only storage. */
+	@DeleteMapping("/api/profile")
+	public ResponseEntity<Void> deleteProfile(
+			@CookieValue(name = SessionService.COOKIE_NAME, required = false) String token) {
+		User user = requireUser(token);
+		repo.findByUserId(user.getUserId()).ifPresent(repo::delete);
+		return ResponseEntity.noContent().build();
 	}
 
 	/** Pure calculation on posted inputs — no persistence, no auth needed. */

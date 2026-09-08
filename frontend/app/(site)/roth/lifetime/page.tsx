@@ -8,14 +8,25 @@ import {
   type LifetimeRothRequest,
   type LifetimeRothResult,
 } from '@/src/lib/api';
+import { useUser } from '@/src/lib/UserContext';
+import { loadProfile } from '@/src/lib/profileStore';
+import { lifetimeDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { LifetimeWealthChart, type WealthPoint } from '@/src/components/LifetimeWealthChart';
 
 export default function LifetimeRothPage() {
+  const { user } = useUser();
   const [input, setInput] = useState<LifetimeRothRequest>(DEFAULT_LIFETIME_ROTH);
   const [result, setResult] = useState<LifetimeRothResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [seeded, setSeeded] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Prefill from the saved household profile once signed in.
+  useEffect(() => {
+    if (!user || seeded) return;
+    loadProfile(user.userId).then((p) => { if (p) setInput(lifetimeDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+  }, [user, seeded]);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -45,6 +56,37 @@ export default function LifetimeRothPage() {
   }, [result, input.terminalTradRate]);
 
   const rec = result?.convertRecommended;
+
+  // Break the outcome into its parts, and the upfront tax cash the conversions need.
+  const breakdown = useMemo(() => {
+    if (!result) return null;
+    const b = result.baseline;
+    const c = result.converted;
+    const incomeTaxSaved = b.lifetimeIncomeTax - c.lifetimeIncomeTax;
+    const irmaaSaved = b.lifetimeIrmaa - c.lifetimeIrmaa;
+    const acaLost = b.lifetimeAcaSubsidy - c.lifetimeAcaSubsidy;
+
+    // Cash to fund the conversions = extra income tax during conversion years,
+    // paid from the taxable account.
+    const baseByAge = new Map(b.points.map((p) => [p.age, p]));
+    let cashNeeded = 0;
+    let peakYear = 0;
+    let peakAge = 0;
+    let firstConvAge = 0;
+    let lastConvAge = 0;
+    for (const p of c.points) {
+      if (p.conversion > 0) {
+        if (!firstConvAge) firstConvAge = p.age;
+        lastConvAge = p.age;
+        const bp = baseByAge.get(p.age);
+        const extra = p.federalTax + p.stateTax - (bp ? bp.federalTax + bp.stateTax : 0);
+        cashNeeded += extra;
+        if (extra > peakYear) { peakYear = extra; peakAge = p.age; }
+      }
+    }
+    return { incomeTaxSaved, irmaaSaved, acaLost, cashNeeded, peakYear, peakAge, firstConvAge, lastConvAge,
+      startingTaxable: input.taxableBalance };
+  }, [result, input.taxableBalance]);
 
   return (
     <div className="space-y-8">
@@ -144,13 +186,50 @@ export default function LifetimeRothPage() {
                     : `Converting costs ${money(Math.abs(result.endingWealthAdvantage))}`}
                 </div>
                 <p className="mt-1 text-sm opacity-70">
-                  Over the plan, the strategy converts {money(result.converted.totalConverted)} and{' '}
-                  {result.lifetimeTaxSaved >= 0
-                    ? `saves ${money(result.lifetimeTaxSaved)} in lifetime taxes + IRMAA`
-                    : `adds ${money(Math.abs(result.lifetimeTaxSaved))} in lifetime taxes`}
-                  . RMDs begin at age {result.rmdStartAge}.
+                  You convert {money(result.converted.totalConverted)} over ages{' '}
+                  {breakdown?.firstConvAge}–{breakdown?.lastConvAge}. RMDs begin at age {result.rmdStartAge}.
                 </p>
+
+                {breakdown && (
+                  <dl className="mt-3 space-y-1.5 border-t border-black/10 pt-3 text-sm dark:border-white/10">
+                    <Line label="Federal + state income tax saved" value={breakdown.incomeTaxSaved} good />
+                    <Line label="Medicare IRMAA saved" value={breakdown.irmaaSaved} good />
+                    {input.acaCoverage && breakdown.acaLost !== 0 && (
+                      <Line label="ACA subsidies forfeited" value={-breakdown.acaLost} good={false} />
+                    )}
+                    <div className="mt-1 flex items-baseline justify-between border-t border-black/10 pt-1.5 font-semibold dark:border-white/10">
+                      <span>Net effect on ending wealth</span>
+                      <span className={rec ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}>
+                        {rec ? '+' : '−'}{money(Math.abs(result.endingWealthAdvantage))}
+                      </span>
+                    </div>
+                  </dl>
+                )}
               </div>
+
+              {breakdown && breakdown.cashNeeded > 0 && (
+                <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
+                  <div className="text-xs uppercase tracking-wide opacity-60">
+                    Cash you need to do this
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-semibold">{money(breakdown.cashNeeded)}</span>
+                    <span className="text-sm opacity-70">in conversion taxes, total</span>
+                  </div>
+                  <p className="mt-1 text-sm opacity-70">
+                    Spread over ages {breakdown.firstConvAge}–{breakdown.lastConvAge}, with the biggest single year
+                    about {money(breakdown.peakYear)} at age {breakdown.peakAge}. Paid from your taxable account
+                    (starting balance {money(breakdown.startingTaxable)}) — ideally you cover the tax from outside
+                    the IRA so the full conversion lands in the Roth.
+                  </p>
+                  {breakdown.cashNeeded > breakdown.startingTaxable && (
+                    <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm">
+                      ⚠️ The total conversion tax exceeds your taxable balance — you may not have enough outside
+                      cash to pay it, which weakens the strategy. Consider converting less each year.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <Compare label="Lifetime income tax"
@@ -208,6 +287,19 @@ export default function LifetimeRothPage() {
 
 function Section({ title }: { title: string }) {
   return <div className="pt-2 text-xs font-semibold uppercase tracking-wide opacity-40">{title}</div>;
+}
+
+/** One line in the savings breakdown: positive = a saving, negative = a cost. */
+function Line({ label, value, good }: { label: string; value: number; good: boolean }) {
+  const positive = value >= 0;
+  return (
+    <div className="flex items-baseline justify-between">
+      <span className="opacity-70">{label}</span>
+      <span className={good && positive ? 'text-emerald-600 dark:text-emerald-400' : positive ? '' : 'text-amber-600'}>
+        {positive ? '+' : '−'}{money(Math.abs(value))}
+      </span>
+    </div>
+  );
 }
 
 function Compare({ label, base, conv, higherIsBetter = false }: {

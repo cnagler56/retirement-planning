@@ -3,17 +3,28 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, DEFAULT_SS, type SsBreakeven, type SsBreakevenRequest } from '@/src/lib/api';
+import { useUser } from '@/src/lib/UserContext';
+import { loadProfile } from '@/src/lib/profileStore';
+import { ssDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { BreakevenChart } from '@/src/components/BreakevenChart';
 
 const CLAIM_AGES = Array.from({ length: 9 }, (_, i) => 62 + i); // 62..70
 
 export default function SocialSecurityPage() {
+  const { user } = useUser();
   const [input, setInput] = useState<SsBreakevenRequest>(DEFAULT_SS);
   const [result, setResult] = useState<SsBreakeven | null>(null);
   // COLA mirrors inflation until the user edits COLA directly, then it unlinks.
   const [colaLinked, setColaLinked] = useState(true);
+  const [seeded, setSeeded] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Prefill from the saved household profile once signed in.
+  useEffect(() => {
+    if (!user || seeded) return;
+    loadProfile(user.userId).then((p) => { if (p) setInput(ssDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+  }, [user, seeded]);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);

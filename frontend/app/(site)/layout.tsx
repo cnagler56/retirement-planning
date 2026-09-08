@@ -23,7 +23,9 @@ function Header() {
           </Link>
           {user ? (
             <>
-              <span className="opacity-70">{user.firstName || user.email}</span>
+              <Link href="/profile" className="opacity-80 hover:opacity-100">
+                {user.firstName || 'My info'}
+              </Link>
               <button onClick={() => void logout()} className="underline underline-offset-4">
                 Sign out
               </button>

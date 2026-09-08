@@ -8,13 +8,24 @@ import {
   type ConversionTaxRequest,
   type ConversionTaxResult,
 } from '@/src/lib/api';
+import { useUser } from '@/src/lib/UserContext';
+import { loadProfile } from '@/src/lib/profileStore';
+import { conversionTaxDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { RothTorpedoChart } from '@/src/components/RothTorpedoChart';
 
 export default function RothPage() {
+  const { user } = useUser();
   const [input, setInput] = useState<ConversionTaxRequest>(DEFAULT_CONVERSION_TAX);
   const [result, setResult] = useState<ConversionTaxResult | null>(null);
+  const [seeded, setSeeded] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Prefill from the saved household profile once signed in.
+  useEffect(() => {
+    if (!user || seeded) return;
+    loadProfile(user.userId).then((p) => { if (p) setInput(conversionTaxDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+  }, [user, seeded]);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);

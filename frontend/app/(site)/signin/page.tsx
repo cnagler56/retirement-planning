@@ -23,10 +23,12 @@ export default function SignInPage() {
     try {
       if (mode === 'login') {
         await login({ email, password });
+        router.push('/');
       } else {
         await register({ email, password, firstName, lastName });
+        // New accounts go straight to onboarding to capture their profile.
+        router.push('/profile?welcome=1');
       }
-      router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

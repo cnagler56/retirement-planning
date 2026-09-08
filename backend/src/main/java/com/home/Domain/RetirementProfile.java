@@ -56,6 +56,34 @@ public class RetirementProfile {
 	@JsonProperty
 	private double inflationRate;
 
+	/** "SINGLE" or "MARRIED_JOINT" — drives tax brackets across the calculators. */
+	@JsonProperty
+	private String filingStatus;
+
+	/** Spouse's current age (married-joint only). */
+	@JsonProperty
+	private int spouseAge;
+
+	/** Pre-tax (Traditional IRA / 401k) balance, today's dollars. */
+	@JsonProperty
+	private double tradBalance;
+
+	/** Roth balance, today's dollars. */
+	@JsonProperty
+	private double rothBalance;
+
+	/** Taxable brokerage balance, today's dollars. */
+	@JsonProperty
+	private double taxableBalance;
+
+	/** Annual pension income (ordinary), today's dollars. */
+	@JsonProperty
+	private double annualPension;
+
+	/** Flat state income-tax rate (decimal). */
+	@JsonProperty
+	private double stateTaxRate;
+
 	/** Desired gross income per year in retirement, in today's dollars. */
 	@JsonProperty
 	private double desiredAnnualIncome;
@@ -106,6 +134,27 @@ public class RetirementProfile {
 
 	public double getDesiredAnnualIncome() { return desiredAnnualIncome; }
 	public void setDesiredAnnualIncome(double desiredAnnualIncome) { this.desiredAnnualIncome = desiredAnnualIncome; }
+
+	public String getFilingStatus() { return filingStatus; }
+	public void setFilingStatus(String filingStatus) { this.filingStatus = filingStatus; }
+
+	public int getSpouseAge() { return spouseAge; }
+	public void setSpouseAge(int spouseAge) { this.spouseAge = spouseAge; }
+
+	public double getTradBalance() { return tradBalance; }
+	public void setTradBalance(double tradBalance) { this.tradBalance = tradBalance; }
+
+	public double getRothBalance() { return rothBalance; }
+	public void setRothBalance(double rothBalance) { this.rothBalance = rothBalance; }
+
+	public double getTaxableBalance() { return taxableBalance; }
+	public void setTaxableBalance(double taxableBalance) { this.taxableBalance = taxableBalance; }
+
+	public double getAnnualPension() { return annualPension; }
+	public void setAnnualPension(double annualPension) { this.annualPension = annualPension; }
+
+	public double getStateTaxRate() { return stateTaxRate; }
+	public void setStateTaxRate(double stateTaxRate) { this.stateTaxRate = stateTaxRate; }
 
 	public double getSsMonthlyAtFra() { return ssMonthlyAtFra; }
 	public void setSsMonthlyAtFra(double ssMonthlyAtFra) { this.ssMonthlyAtFra = ssMonthlyAtFra; }
