@@ -65,6 +65,36 @@ export default function SocialSecurityPage() {
         <Link href="/" className="text-sm underline underline-offset-4">← Dashboard</Link>
       </div>
 
+      <details className="rounded-lg border border-black/10 p-4 dark:border-white/10">
+        <summary className="cursor-pointer text-sm font-medium">
+          What are RMDs (Required Minimum Distributions)?
+        </summary>
+        <div className="mt-3 space-y-3 text-sm leading-relaxed opacity-80">
+          <p>
+            Money in <strong>tax-deferred</strong> accounts — Traditional IRA, 401(k), 403(b) — was never taxed, so
+            the IRS eventually forces you to withdraw (and pay tax on) a minimum amount each year. Those are RMDs.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li><strong>When they start:</strong> age <strong>73</strong> if you were born 1951–1959, or <strong>75</strong>
+              if born 1960 or later (SECURE 2.0).</li>
+            <li><strong>How much:</strong> your prior year-end balance ÷ an IRS life-expectancy factor. The factor
+              shrinks with age, so RMDs start around <strong>3.8% of the balance and rise every year</strong>.</li>
+            <li><strong>Taxed as ordinary income</strong> — and a large RMD can push you into a higher bracket, make
+              more of your Social Security taxable, and trigger Medicare IRMAA surcharges (the &quot;tax torpedo&quot;).</li>
+            <li><strong>Roth accounts have no RMDs</strong> for the original owner (Roth 401(k)s too, starting 2024) —
+              which is why converting to Roth <em>before</em> RMD age shrinks this future forced income.</li>
+            <li><strong>Miss one</strong> and the penalty is a 25% excise tax (10% if corrected promptly).</li>
+            <li><strong>Giving to charity?</strong> From age 70½ a Qualified Charitable Distribution (up to ~$105k/yr)
+              sent straight from your IRA counts toward your RMD and isn&apos;t taxed.</li>
+          </ul>
+          <p>
+            The{' '}
+            <Link href="/roth/lifetime" className="underline underline-offset-4">lifetime Roth analysis</Link>{' '}
+            models your RMDs year by year and shows how gap-year conversions reduce them.
+          </p>
+        </div>
+      </details>
+
       <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
         {/* Inputs */}
         <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>

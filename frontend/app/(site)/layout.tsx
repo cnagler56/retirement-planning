@@ -27,6 +27,9 @@ function Header() {
           <Link href="/roth" className="opacity-80 hover:opacity-100">
             Roth
           </Link>
+          <Link href="/medicare" className="opacity-80 hover:opacity-100">
+            Medicare
+          </Link>
           {user ? (
             <>
               <Link href="/profile" className="opacity-80 hover:opacity-100">

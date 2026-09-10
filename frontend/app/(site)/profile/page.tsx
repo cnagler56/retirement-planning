@@ -280,7 +280,8 @@ export default function ProfilePage() {
             </div>
           )}
           <p className="mt-2 text-xs opacity-45">
-            Approximate 2025 figures. IRMAA uses the income above; in reality it&apos;s based on your income from two years prior.
+            Approximate 2025 figures. IRMAA uses the income above; in reality it&apos;s based on your income from two years prior.{' '}
+            <Link href="/medicare" className="underline underline-offset-2">How Medicare works →</Link>
           </p>
         </details>
       </Group>
