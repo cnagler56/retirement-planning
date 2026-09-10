@@ -23,7 +23,7 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 # createDatabaseIfNotExist makes the app create the schema itself.
 $env:DB_URL      = "jdbc:mysql://localhost:3307/retirement?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false"
 $env:DB_USER     = "root"
-$env:DB_PASSWORD = "dev_pw"
+$env:DB_PASSWORD = "change_me"   # match backend/.env's MYSQL_ROOT_PASSWORD
 
 # -- CORS / frontend origin -----------------------------------
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:3000"
