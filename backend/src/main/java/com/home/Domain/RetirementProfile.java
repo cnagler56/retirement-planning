@@ -128,6 +128,12 @@ public class RetirementProfile {
 	@JsonProperty
 	private List<IncomeStream> incomeStreams = new ArrayList<>();
 
+	/** Itemized retirement expenses (base living costs, travel, mortgage, one-offs). */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "profile_expenses", joinColumns = @JoinColumn(name = "profile_id"))
+	@JsonProperty
+	private List<ExpenseItem> expenses = new ArrayList<>();
+
 	/** Desired gross income per year in retirement, in today's dollars. */
 	@JsonProperty
 	private double desiredAnnualIncome;
@@ -242,6 +248,11 @@ public class RetirementProfile {
 	public List<IncomeStream> getIncomeStreams() { return incomeStreams; }
 	public void setIncomeStreams(List<IncomeStream> incomeStreams) {
 		this.incomeStreams = incomeStreams != null ? incomeStreams : new ArrayList<>();
+	}
+
+	public List<ExpenseItem> getExpenses() { return expenses; }
+	public void setExpenses(List<ExpenseItem> expenses) {
+		this.expenses = expenses != null ? expenses : new ArrayList<>();
 	}
 
 	public double getSsMonthlyAtFra() { return ssMonthlyAtFra; }

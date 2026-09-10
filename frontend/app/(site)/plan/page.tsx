@@ -6,6 +6,8 @@ import {
   ageFromBirthDate,
   api,
   DEFAULT_PROFILE,
+  type GoalSeekLever,
+  type GoalSeekResult,
   type MonteCarloResult,
   type Projection,
   type RetirementProfile,
@@ -24,6 +26,9 @@ export default function PlanPage() {
   const [projection, setProjection] = useState<Projection | null>(null);
   const [monteCarlo, setMonteCarlo] = useState<MonteCarloResult | null>(null);
   const [volatility, setVolatility] = useState(0.12);
+  const [goalTarget, setGoalTarget] = useState(0.9);
+  const [goal, setGoal] = useState<GoalSeekResult | null>(null);
+  const [goalBusy, setGoalBusy] = useState(false);
   const [loadedSaved, setLoadedSaved] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -62,6 +67,17 @@ export default function PlanPage() {
     [],
   );
 
+  async function runGoalSeek() {
+    setGoalBusy(true);
+    try {
+      setGoal(await api.goalSeek(profile, volatility, goalTarget));
+    } catch {
+      setGoal(null);
+    } finally {
+      setGoalBusy(false);
+    }
+  }
+
   async function onSave() {
     if (!user) return;
     setSaveState('saving');
@@ -87,7 +103,7 @@ export default function PlanPage() {
             Everything in today&apos;s dollars. The projection updates live.
           </p>
         </div>
-        <Link href="/" className="text-sm underline underline-offset-4">← Dashboard</Link>
+        <Link href="/ledger" className="text-sm underline underline-offset-4">Year-by-year table →</Link>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
@@ -216,6 +232,49 @@ export default function PlanPage() {
                 Each year&apos;s return is drawn at random around your {percent(profile.annualReturnRate)} expected
                 return with {percent(volatility)} volatility, capturing sequence-of-returns risk. Today&apos;s dollars.
               </p>
+
+              {/* Goal-seek */}
+              <div className="border-t border-black/10 pt-4 dark:border-white/10">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide opacity-60">What would it take?</div>
+                    <p className="mt-0.5 text-sm opacity-70">Solve for the change that hits your target success rate.</p>
+                  </div>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs opacity-70">Target</span>
+                    <div className="flex items-center rounded-md border border-black/15 dark:border-white/15">
+                      <input type="number" value={Math.round(goalTarget * 100)} min={50} max={99} step={1}
+                        onChange={(e) => setGoalTarget((e.target.value === '' ? 90 : Number(e.target.value)) / 100)}
+                        className="w-16 bg-transparent px-2 py-2 outline-none" />
+                      <span className="pr-2 text-sm opacity-50">%</span>
+                    </div>
+                  </label>
+                  <button type="button" onClick={runGoalSeek} disabled={goalBusy}
+                    className="rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+                    style={{ background: 'var(--foreground)', color: 'var(--background)' }}>
+                    {goalBusy ? 'Solving…' : 'Solve'}
+                  </button>
+                </div>
+
+                {goal && (
+                  <div className="mt-3">
+                    <p className="text-sm opacity-70">
+                      To reach <strong>{Math.round(goal.target * 100)}%</strong> (now {Math.round(goal.currentSuccess * 100)}%), any one of:
+                    </p>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                      <LeverCard title="Save more" lever={goal.monthlyContribution}
+                        met="Your savings already get you there" fmt={money}
+                        phrase={(v) => `Save ${money(v)}/mo`} />
+                      <LeverCard title="Retire later" lever={goal.retirementAge}
+                        met="Your retirement age already works" fmt={(v) => `age ${v}`}
+                        phrase={(v) => `Retire at ${v}`} />
+                      <LeverCard title="Spend less" lever={goal.spending}
+                        met="Your spending is already sustainable" fmt={money}
+                        phrase={(v) => `Spend ${money(v)}/yr`} />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -234,6 +293,30 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <div className="text-xs uppercase tracking-wide opacity-60">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
       {hint && <div className="mt-0.5 text-xs opacity-50">{hint}</div>}
+    </div>
+  );
+}
+
+function LeverCard({ title, lever, met, fmt, phrase }: {
+  title: string;
+  lever: GoalSeekLever;
+  met: string;
+  fmt: (v: number) => string;
+  phrase: (v: number) => string;
+}) {
+  return (
+    <div className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+      <div className="text-xs uppercase tracking-wide opacity-55">{title}</div>
+      {lever.alreadyMet ? (
+        <div className="mt-1 text-sm text-cyan-600 dark:text-cyan-400">{met}</div>
+      ) : lever.reachable ? (
+        <>
+          <div className="mt-1 text-lg font-semibold">{phrase(lever.neededValue)}</div>
+          <div className="mt-0.5 text-xs opacity-55">from {fmt(lever.currentValue)}</div>
+        </>
+      ) : (
+        <div className="mt-1 text-sm opacity-60">Not reachable with this lever alone</div>
+      )}
     </div>
   );
 }

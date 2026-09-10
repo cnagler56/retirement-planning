@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ageFromBirthDate, api, DEFAULT_PROFILE, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
+import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
@@ -85,6 +85,19 @@ export default function ProfilePage() {
     }));
   const removeStream = (i: number) =>
     setP((prev) => ({ ...prev, incomeStreams: prev.incomeStreams.filter((_, idx) => idx !== i) }));
+
+  const addExpense = () =>
+    setP((prev) => ({
+      ...prev,
+      expenses: [
+        ...(prev.expenses || []),
+        { label: '', annualAmount: 0, startAge: prev.retirementAge, endAge: 0, inflationAdjusted: true },
+      ],
+    }));
+  const updateExpense = (i: number, patch: Partial<ExpenseItem>) =>
+    setP((prev) => ({ ...prev, expenses: prev.expenses.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
+  const removeExpense = (i: number) =>
+    setP((prev) => ({ ...prev, expenses: prev.expenses.filter((_, idx) => idx !== i) }));
 
   async function onSave() {
     if (!user) return;
@@ -215,6 +228,44 @@ export default function ProfilePage() {
                   <span className="opacity-70">Keeps pace with inflation</span>
                 </label>
                 <button type="button" onClick={() => removeStream(i)} className="text-sm text-red-500 underline underline-offset-4">
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Retirement expenses</h2>
+          <button type="button" onClick={addExpense} className="text-sm underline underline-offset-4">+ Add expense</button>
+        </div>
+        <p className="mb-3 text-xs opacity-55">
+          Itemize your spending — base living costs, travel during the early years, a mortgage that ends, a one-off
+          like a new roof. If you leave this empty, the &quot;desired annual income&quot; above is used as a single
+          living-expenses line. Healthcare is modeled separately below.
+        </p>
+        {(p.expenses || []).length === 0 && (
+          <p className="text-sm opacity-50">No itemized expenses — using your desired annual income.</p>
+        )}
+        <div className="space-y-3">
+          {(p.expenses || []).map((e, i) => (
+            <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Label" value={e.label} placeholder="e.g. Travel"
+                  onChange={(v) => updateExpense(i, { label: v })} />
+                <Num label="Amount per year" value={e.annualAmount} onChange={(v) => updateExpense(i, { annualAmount: v })} min={0} step={1000} prefix="$" />
+                <Num label="Starts at age" value={e.startAge} onChange={(v) => updateExpense(i, { startAge: v })} min={0} max={110} />
+                <Num label="Until age (0 = for life)" value={e.endAge} onChange={(v) => updateExpense(i, { endAge: v })} min={0} max={110} />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={e.inflationAdjusted}
+                    onChange={(ev) => updateExpense(i, { inflationAdjusted: ev.target.checked })} />
+                  <span className="opacity-70">Keeps pace with inflation</span>
+                </label>
+                <button type="button" onClick={() => removeExpense(i)} className="text-sm text-red-500 underline underline-offset-4">
                   Remove
                 </button>
               </div>

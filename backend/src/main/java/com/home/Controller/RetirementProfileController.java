@@ -12,12 +12,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.home.Domain.GoalSeekRequest;
+import com.home.Domain.GoalSeekResult;
+import com.home.Domain.LedgerResult;
 import com.home.Domain.MonteCarloRequest;
 import com.home.Domain.MonteCarloResult;
 import com.home.Domain.ProjectionResult;
 import com.home.Domain.RetirementProfile;
 import com.home.Domain.User;
 import com.home.Repository.RetirementProfileRepository;
+import com.home.Service.GoalSeekService;
+import com.home.Service.LedgerService;
 import com.home.Service.MonteCarloService;
 import com.home.Service.ProjectionService;
 import com.home.Service.SessionService;
@@ -38,14 +43,18 @@ public class RetirementProfileController {
 	private final RetirementProfileRepository repo;
 	private final ProjectionService projectionService;
 	private final MonteCarloService monteCarloService;
+	private final GoalSeekService goalSeekService;
+	private final LedgerService ledgerService;
 	private final SessionService sessionService;
 
 	public RetirementProfileController(RetirementProfileRepository repo,
 			ProjectionService projectionService, MonteCarloService monteCarloService,
-			SessionService sessionService) {
+			GoalSeekService goalSeekService, LedgerService ledgerService, SessionService sessionService) {
 		this.repo = repo;
 		this.projectionService = projectionService;
 		this.monteCarloService = monteCarloService;
+		this.goalSeekService = goalSeekService;
+		this.ledgerService = ledgerService;
 		this.sessionService = sessionService;
 	}
 
@@ -90,6 +99,7 @@ public class RetirementProfileController {
 		profile.setState(body.getState());
 		profile.setStateTaxRate(body.getStateTaxRate());
 		profile.setIncomeStreams(body.getIncomeStreams());
+		profile.setExpenses(body.getExpenses());
 		return repo.save(profile);
 	}
 
@@ -112,6 +122,18 @@ public class RetirementProfileController {
 	@PostMapping("/api/projection/montecarlo")
 	public MonteCarloResult monteCarlo(@RequestBody MonteCarloRequest body) {
 		return monteCarloService.run(body);
+	}
+
+	/** Goal-seek: what change to each lever reaches a target success rate. */
+	@PostMapping("/api/projection/goalseek")
+	public GoalSeekResult goalSeek(@RequestBody GoalSeekRequest body) {
+		return goalSeekService.solve(body);
+	}
+
+	/** Full year-by-year cash-flow ledger from retirement age to the horizon. */
+	@PostMapping("/api/projection/ledger")
+	public LedgerResult ledger(@RequestBody RetirementProfile body) {
+		return ledgerService.compute(body);
 	}
 
 	/** Projection from the signed-in user's saved profile. */

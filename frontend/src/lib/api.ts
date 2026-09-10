@@ -59,6 +59,43 @@ export interface IncomeStream {
   inflationAdjusted: boolean;
 }
 
+/** An itemized retirement expense (base living, travel, mortgage, one-off…). */
+export interface ExpenseItem {
+  label: string;
+  annualAmount: number;
+  startAge: number;
+  endAge: number;
+  inflationAdjusted: boolean;
+}
+
+export interface LedgerRow {
+  age: number;
+  startBalance: number;
+  socialSecurity: number;
+  pension: number;
+  otherIncome: number;
+  rmd: number;
+  withdrawal: number;
+  livingExpenses: number;
+  healthcare: number;
+  federalTax: number;
+  stateTax: number;
+  irmaa: number;
+  taxableSs: number;
+  endTrad: number;
+  endRoth: number;
+  endTaxable: number;
+  endTotal: number;
+  shortfall: boolean;
+}
+
+export interface LedgerResult {
+  rows: LedgerRow[];
+  moneyLastsToAge: number | null;
+  realReturn: number;
+  rmdStartAge: number;
+}
+
 /** Whole years between an ISO birth date (yyyy-mm-dd) and today. */
 export function ageFromBirthDate(iso: string | null | undefined): number {
   if (!iso) return 0;
@@ -127,6 +164,7 @@ export interface RetirementProfile {
   state: string;
   stateTaxRate: number;
   incomeStreams: IncomeStream[];
+  expenses: ExpenseItem[];
 }
 
 export interface StateTaxInfo {
@@ -180,6 +218,22 @@ export interface MonteCarloResult {
   p90EndingBalance: number;
   medianDepletionAge: number | null;
   points: MonteCarloBand[];
+}
+
+export interface GoalSeekLever {
+  alreadyMet: boolean;
+  reachable: boolean;
+  currentValue: number;
+  neededValue: number;
+  delta: number;
+}
+
+export interface GoalSeekResult {
+  currentSuccess: number;
+  target: number;
+  monthlyContribution: GoalSeekLever;
+  retirementAge: GoalSeekLever;
+  spending: GoalSeekLever;
 }
 
 /** All dollar figures are in today's (inflation-adjusted) dollars. */
@@ -276,6 +330,7 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   state: '',
   stateTaxRate: 0,
   incomeStreams: [],
+  expenses: [],
 };
 
 export type TaxSource = 'OUTSIDE' | 'CONVERSION';
@@ -561,6 +616,13 @@ export const api = {
   /** Monte Carlo run of a plan — probability of success and percentile bands. */
   monteCarlo: (profile: RetirementProfile, volatility: number, trials = 1000) =>
     send<MonteCarloResult>('/api/projection/montecarlo', 'POST', { profile, volatility, trials }),
+
+  /** Goal-seek: what change to each lever reaches a target success rate. */
+  goalSeek: (profile: RetirementProfile, volatility: number, targetSuccess: number, trials = 500) =>
+    send<GoalSeekResult>('/api/projection/goalseek', 'POST', { profile, volatility, targetSuccess, trials }),
+
+  /** Full year-by-year cash-flow ledger from retirement to the horizon. */
+  ledger: (profile: RetirementProfile) => send<LedgerResult>('/api/projection/ledger', 'POST', profile),
 
   /** Social Security claiming breakeven — pure calc, no login required. */
   ssBreakeven: (r: SsBreakevenRequest) =>

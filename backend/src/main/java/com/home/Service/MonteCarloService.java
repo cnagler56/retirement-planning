@@ -125,6 +125,49 @@ public class MonteCarloService {
 		);
 	}
 
+	/**
+	 * Just the probability the plan lasts through the horizon — the same simulation
+	 * as {@link #run} but without the percentile bands, so goal-seek can call it
+	 * many times cheaply. Fixed seed keeps it deterministic for a given input.
+	 */
+	public double successProbability(RetirementProfile p, double volatility, int trials) {
+		int currentAge = Math.max(0, p.getCurrentAge());
+		int retirementAge = Math.max(currentAge, p.getRetirementAge());
+		int planThrough = Math.max(retirementAge + 1, p.getPlanThroughAge() > 0 ? p.getPlanThroughAge() : 95);
+		int years = planThrough - currentAge;
+		double meanNominal = p.getAnnualReturnRate();
+		double inflation = p.getInflationRate();
+		double annualContribution = p.getMonthlyContribution() * 12;
+		double spending = p.getDesiredAnnualIncome();
+
+		double ssAnnual = 0;
+		if (p.getSsMonthlyAtFra() > 0 && p.getSsClaimAge() >= 62) {
+			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
+		}
+		int claimAge = p.getSsClaimAge();
+
+		Random random = new Random(SEED);
+		int successes = 0;
+		for (int trial = 0; trial < trials; trial++) {
+			double balance = p.getCurrentSavings();
+			boolean depleted = false;
+			for (int y = 1; y <= years; y++) {
+				int age = currentAge + y;
+				double realReturn = (1 + (meanNominal + volatility * random.nextGaussian())) / (1 + inflation) - 1;
+				balance *= (1 + realReturn);
+				if (age <= retirementAge) {
+					balance += annualContribution;
+				} else {
+					double ss = age >= claimAge ? ssAnnual : 0;
+					balance -= (spending + healthcareAt(p, age) + ltcAt(p, age) - ss - streamIncomeAt(p, age));
+				}
+				if (balance <= 0 && age > retirementAge) { balance = 0; depleted = true; }
+			}
+			if (!depleted) successes++;
+		}
+		return (double) successes / trials;
+	}
+
 	/** Today's-dollars income from all streams active at the given age. */
 	private double streamIncomeAt(RetirementProfile p, int age) {
 		if (p.getIncomeStreams() == null) return 0;
