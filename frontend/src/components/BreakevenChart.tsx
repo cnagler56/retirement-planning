@@ -78,9 +78,9 @@ export function BreakevenChart({
         {/* claim-early curve (amber) */}
         <polyline points={earlyLine} fill="none"
           className="text-amber-500" stroke="currentColor" strokeWidth="2.5" />
-        {/* claim-late curve (emerald) */}
+        {/* claim-late curve (cyan) */}
         <polyline points={lateLine} fill="none"
-          className="text-emerald-600 dark:text-emerald-400" stroke="currentColor" strokeWidth="2.5" />
+          className="text-cyan-600 dark:text-cyan-400" stroke="currentColor" strokeWidth="2.5" />
 
         {ageTicks.map((age) => (
           <text key={age} x={x(age)} y={H - 8} textAnchor="middle" fontSize="10"
@@ -90,7 +90,7 @@ export function BreakevenChart({
 
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
         <Legend swatch="bg-amber-500" label={`Claim at ${earlyAge}`} />
-        <Legend swatch="bg-emerald-500" label={`Claim at ${lateAge}`} />
+        <Legend swatch="bg-cyan-500" label={`Claim at ${lateAge}`} />
         <span className="ml-auto">Age →</span>
       </div>
     </div>

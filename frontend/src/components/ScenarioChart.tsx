@@ -5,7 +5,7 @@ import { moneyCompact } from '@/src/lib/format';
 
 export interface ScenarioSeries {
   name: string;
-  color: string; // hex color, e.g. "#10b981"
+  color: string; // hex color, e.g. "#22d3ee"
   points: { age: number; balance: number }[];
 }
 

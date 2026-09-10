@@ -52,7 +52,7 @@ export function RothChart({ points }: { points: RothPoint[] }) {
         <polyline points={noConvertLine} fill="none"
           className="text-amber-500" stroke="currentColor" strokeWidth="2.5" />
         <polyline points={convertLine} fill="none"
-          className="text-emerald-600 dark:text-emerald-400" stroke="currentColor" strokeWidth="2.5" />
+          className="text-cyan-600 dark:text-cyan-400" stroke="currentColor" strokeWidth="2.5" />
 
         {yearTicks.map((yr) => (
           <text key={yr} x={x(yr)} y={H - 8} textAnchor="middle" fontSize="10"
@@ -61,7 +61,7 @@ export function RothChart({ points }: { points: RothPoint[] }) {
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
-        <Legend swatch="bg-emerald-500" label="Convert to Roth" />
+        <Legend swatch="bg-cyan-500" label="Convert to Roth" />
         <Legend swatch="bg-amber-500" label="Don't convert" />
         <span className="ml-auto">After-tax value →</span>
       </div>

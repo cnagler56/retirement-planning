@@ -183,7 +183,7 @@ export default function AccountsPage() {
         </label>
         <button onClick={save} className="rounded-md px-4 py-2 text-sm font-medium"
           style={{ background: 'var(--foreground)', color: 'var(--background)' }}>Save</button>
-        <button onClick={pullIntoPlan} className="rounded-md border border-emerald-500/50 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+        <button onClick={pullIntoPlan} className="rounded-md border border-cyan-500/50 px-4 py-2 text-sm text-cyan-700 dark:text-cyan-400">
           Pull totals into my plan →
         </button>
         {status && <span className="text-sm opacity-70">{status}</span>}

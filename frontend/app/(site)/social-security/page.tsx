@@ -165,13 +165,13 @@ export default function SocialSecurityPage() {
                 <Stat label={`Monthly at ${result.earlyAge}`} value={money(result.earlyMonthly)}
                   sub={`${money(result.earlyMonthly * 12)}/yr`} accent="amber" />
                 <Stat label={`Monthly at ${result.lateAge}`} value={money(result.lateMonthly)}
-                  sub={`${money(result.lateMonthly * 12)}/yr`} accent="emerald" />
+                  sub={`${money(result.lateMonthly * 12)}/yr`} accent="cyan" />
               </div>
 
               <div
                 className={`rounded-lg border p-3 text-sm ${
                   result.delayingWins
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
+                    ? 'border-cyan-500/40 bg-cyan-500/10'
                     : 'border-amber-500/40 bg-amber-500/10'
                 }`}
               >
@@ -219,9 +219,9 @@ export default function SocialSecurityPage() {
 }
 
 function Stat({ label, value, sub, accent }: {
-  label: string; value: string; sub: string; accent: 'amber' | 'emerald';
+  label: string; value: string; sub: string; accent: 'amber' | 'cyan';
 }) {
-  const dot = accent === 'amber' ? 'bg-amber-500' : 'bg-emerald-500';
+  const dot = accent === 'amber' ? 'bg-amber-500' : 'bg-cyan-500';
   return (
     <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide opacity-60">

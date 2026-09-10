@@ -53,14 +53,14 @@ export function LifetimeWealthChart({ series }: { series: WealthPoint[] }) {
           </g>
         ))}
         <polyline points={baseLine} fill="none" className="text-amber-500" stroke="currentColor" strokeWidth="2.5" />
-        <polyline points={convLine} fill="none" className="text-emerald-600 dark:text-emerald-400" stroke="currentColor" strokeWidth="2.5" />
+        <polyline points={convLine} fill="none" className="text-cyan-600 dark:text-cyan-400" stroke="currentColor" strokeWidth="2.5" />
         {ageTicks.map((a) => (
           <text key={a} x={x(a)} y={H - 8} textAnchor="middle" fontSize="10"
             className="fill-black/50 dark:fill-white/50">{a}</text>
         ))}
       </svg>
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
-        <Legend swatch="bg-emerald-500" label="With conversions" />
+        <Legend swatch="bg-cyan-500" label="With conversions" />
         <Legend swatch="bg-amber-500" label="No conversions" />
         <span className="ml-auto">After-tax net worth (today's $) →</span>
       </div>

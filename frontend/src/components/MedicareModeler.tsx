@@ -30,7 +30,7 @@ export function MedicareModeler() {
   const rows = result
     ? [
         { label: 'Part B premiums', value: result.partB, color: '#0ea5e9' },
-        { label: coverage === 'MEDIGAP' ? 'Medigap premiums' : 'Advantage premiums', value: result.supplement, color: '#10b981' },
+        { label: coverage === 'MEDIGAP' ? 'Medigap premiums' : 'Advantage premiums', value: result.supplement, color: '#22d3ee' },
         { label: 'Part D premiums', value: result.partD, color: '#8b5cf6' },
         { label: 'Out-of-pocket', value: result.outOfPocket, color: '#f59e0b' },
         { label: 'IRMAA surcharge', value: result.irmaa, color: '#ef4444' },

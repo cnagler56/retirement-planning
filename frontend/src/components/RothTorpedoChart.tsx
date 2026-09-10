@@ -71,7 +71,7 @@ export function RothTorpedoChart({
         <polyline points={cumulative} fill="none"
           className="text-black/45 dark:text-white/50" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
         <polyline points={marginal} fill="none"
-          className="text-emerald-600 dark:text-emerald-400" stroke="currentColor" strokeWidth="2.5" />
+          className="text-cyan-600 dark:text-cyan-400" stroke="currentColor" strokeWidth="2.5" />
 
         {amtTicks.map((a) => (
           <text key={a} x={x(a)} y={H - 8} textAnchor="middle" fontSize="10"
@@ -80,7 +80,7 @@ export function RothTorpedoChart({
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
-        <Legend swatch="bg-emerald-500" label="Marginal rate (next $)" />
+        <Legend swatch="bg-cyan-500" label="Marginal rate (next $)" />
         <Legend swatch="bg-black/40 dark:bg-white/40" label="Blended rate (whole conversion)" />
         <span className="ml-auto">Convert up to {money(maxAmt)} →</span>
       </div>

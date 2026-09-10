@@ -332,10 +332,10 @@ function StorageChoice({ active, onClick, title, desc }: {
   return (
     <button type="button" onClick={onClick}
       className={`rounded-md border p-3 text-left ${
-        active ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-black/15 hover:border-black/30 dark:border-white/15 dark:hover:border-white/30'
+        active ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-black/15 hover:border-black/30 dark:border-white/15 dark:hover:border-white/30'
       }`}>
       <div className="flex items-center gap-2 text-sm font-medium">
-        <span className={`inline-block h-3 w-3 rounded-full border ${active ? 'border-emerald-500 bg-emerald-500' : 'border-black/30 dark:border-white/30'}`} />
+        <span className={`inline-block h-3 w-3 rounded-full border ${active ? 'border-cyan-500 bg-cyan-500' : 'border-black/30 dark:border-white/30'}`} />
         {title}
       </div>
       <div className="mt-1 text-xs opacity-60">{desc}</div>

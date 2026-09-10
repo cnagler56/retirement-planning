@@ -102,7 +102,7 @@ export function ProjectionChart({
         )}
 
         {/* balance area + line */}
-        <g className="text-emerald-600 dark:text-emerald-400">
+        <g className="text-cyan-600 dark:text-cyan-400">
           <polygon points={area} fill={`url(#${gradId})`} />
           <polyline points={line} fill="none" stroke="currentColor" strokeWidth="2.5" />
         </g>
@@ -124,7 +124,7 @@ export function ProjectionChart({
         ))}
 
         {hovered && (
-          <g className="text-emerald-600 dark:text-emerald-400">
+          <g className="text-cyan-600 dark:text-cyan-400">
             <line x1={x(hovered.age)} x2={x(hovered.age)} y1={P.top} y2={H - P.bottom}
               stroke="currentColor" strokeOpacity="0.35" />
             <circle cx={x(hovered.age)} cy={y(hovered.balance)} r="4" fill="currentColor" />
@@ -133,7 +133,7 @@ export function ProjectionChart({
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
-        <Legend swatch="bg-emerald-500" label="Portfolio balance (today's $)" />
+        <Legend swatch="bg-cyan-500" label="Portfolio balance (today's $)" />
         {hovered && (
           <span className="ml-auto">
             Age {hovered.age}: <strong>{money(hovered.balance)}</strong>

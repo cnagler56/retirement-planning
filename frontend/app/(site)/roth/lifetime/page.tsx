@@ -177,7 +177,7 @@ export default function LifetimeRothPage() {
           {result && (
             <>
               <div className={`rounded-lg border p-4 ${
-                rec ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-amber-500/40 bg-amber-500/10'
+                rec ? 'border-cyan-500/40 bg-cyan-500/10' : 'border-amber-500/40 bg-amber-500/10'
               } ${busy ? 'opacity-60' : ''}`}>
                 <div className="text-xs uppercase tracking-wide opacity-60">Bottom line</div>
                 <div className="mt-1 text-2xl font-semibold">
@@ -199,7 +199,7 @@ export default function LifetimeRothPage() {
                     )}
                     <div className="mt-1 flex items-baseline justify-between border-t border-black/10 pt-1.5 font-semibold dark:border-white/10">
                       <span>Net effect on ending wealth</span>
-                      <span className={rec ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}>
+                      <span className={rec ? 'text-cyan-600 dark:text-cyan-400' : 'text-amber-600'}>
                         {rec ? '+' : '−'}{money(Math.abs(result.endingWealthAdvantage))}
                       </span>
                     </div>
@@ -295,7 +295,7 @@ function Line({ label, value, good }: { label: string; value: number; good: bool
   return (
     <div className="flex items-baseline justify-between">
       <span className="opacity-70">{label}</span>
-      <span className={good && positive ? 'text-emerald-600 dark:text-emerald-400' : positive ? '' : 'text-amber-600'}>
+      <span className={good && positive ? 'text-cyan-600 dark:text-cyan-400' : positive ? '' : 'text-amber-600'}>
         {positive ? '+' : '−'}{money(Math.abs(value))}
       </span>
     </div>
@@ -310,7 +310,7 @@ function Compare({ label, base, conv, higherIsBetter = false }: {
     <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
       <div className="text-xs uppercase tracking-wide opacity-60">{label}</div>
       <div className="mt-1 text-lg font-semibold">{money(conv)}</div>
-      <div className={`mt-0.5 text-xs ${better ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-50'}`}>
+      <div className={`mt-0.5 text-xs ${better ? 'text-cyan-600 dark:text-cyan-400' : 'opacity-50'}`}>
         vs {money(base)} baseline
       </div>
     </div>

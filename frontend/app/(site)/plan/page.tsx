@@ -137,7 +137,7 @@ export default function PlanPage() {
           {projection && (
             <>
               <div className={`rounded-lg border p-4 ${
-                funded ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'
+                funded ? 'border-cyan-500/40 bg-cyan-500/10' : 'border-red-500/40 bg-red-500/10'
               }`}>
                 <div className="text-xs uppercase tracking-wide opacity-60">Bottom line</div>
                 <div className="mt-1 text-2xl font-semibold">
@@ -186,7 +186,7 @@ export default function PlanPage() {
                   </div>
                   <div className="mt-1 flex items-baseline gap-2">
                     <span className={`text-3xl font-semibold ${
-                      monteCarlo.successProbability >= 0.85 ? 'text-emerald-600 dark:text-emerald-400'
+                      monteCarlo.successProbability >= 0.85 ? 'text-cyan-600 dark:text-cyan-400'
                       : monteCarlo.successProbability >= 0.7 ? '' : 'text-red-500'
                     }`}>
                       {Math.round(monteCarlo.successProbability * 100)}%

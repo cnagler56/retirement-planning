@@ -60,7 +60,7 @@ export function MonteCarloChart({ points }: { points: MonteCarloBand[] }) {
           </g>
         ))}
 
-        <g className="text-emerald-600 dark:text-emerald-400">
+        <g className="text-cyan-600 dark:text-cyan-400">
           <polygon points={band} fill={`url(#${gradId})`} />
           <polyline points={median} fill="none" stroke="currentColor" strokeWidth="2.5" />
         </g>
@@ -71,8 +71,8 @@ export function MonteCarloChart({ points }: { points: MonteCarloBand[] }) {
         ))}
       </svg>
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs opacity-70">
-        <Legend swatch="bg-emerald-500" label="Median outcome" />
-        <Legend swatch="bg-emerald-500/25" label="10th–90th percentile range" />
+        <Legend swatch="bg-cyan-500" label="Median outcome" />
+        <Legend swatch="bg-cyan-500/25" label="10th–90th percentile range" />
         <span className="ml-auto">Portfolio balance (today's $) →</span>
       </div>
     </div>

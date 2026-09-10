@@ -20,7 +20,7 @@ import {
 import { money, percent } from '@/src/lib/format';
 import { ScenarioChart, type ScenarioSeries } from '@/src/components/ScenarioChart';
 
-const COLORS = ['#10b981', '#f59e0b', '#0ea5e9', '#8b5cf6']; // emerald, amber, sky, violet
+const COLORS = ['#22d3ee', '#f59e0b', '#f472b6', '#a78bfa']; // cyan, amber, pink, violet
 const CLAIM_AGES = Array.from({ length: 9 }, (_, i) => 62 + i);
 
 interface Computed {
