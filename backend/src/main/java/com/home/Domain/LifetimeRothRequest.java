@@ -59,5 +59,6 @@ public record LifetimeRothRequest(
 		Double survivorSocialSecurity,
 		Boolean acaCoverage,
 		Integer acaHouseholdSize,
-		Double acaBenchmarkAnnual) {
+		Double acaBenchmarkAnnual,
+		java.util.List<IncomeStream> incomeStreams) {
 }

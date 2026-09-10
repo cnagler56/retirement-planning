@@ -39,7 +39,9 @@ public record ProjectionResult(
 		int planThroughAge,
 		double balanceAtEnd,
 		boolean fundedThroughGoal,
-		double realReturn) {
+		double realReturn,
+		double annualHealthcareAtRetirement,
+		double ltcTotalCost) {
 
 	/**
 	 * A single year of the plan. During accumulation {@code contribution} is

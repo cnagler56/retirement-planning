@@ -124,16 +124,17 @@ public class LifetimeRothService {
 			double ss = widowed ? survivorSs : (age >= ssClaimAge ? ssBenefit : 0);
 			double qualified = taxable * yieldRate;         // realized dividends
 			double rmd = RmdTable.required(age, birthYear, trad);
+			double streamIncome = streamIncomeAt(req.incomeStreams(), age, currentAge, inflation);
 
 			double conversion = 0;
 			if (doConvert && age >= convStart && age <= convEnd && target > 0 && trad - rmd > 0) {
-				conversion = fillToTarget(effFiling, over65, pension + rmd, ss, qualified, realScale, target);
+				conversion = fillToTarget(effFiling, over65, pension + rmd + streamIncome, ss, qualified, realScale, target);
 				conversion = Math.min(conversion, trad - rmd);
 				if (maxConv > 0) conversion = Math.min(conversion, maxConv);
 				conversion = Math.max(0, conversion);
 			}
 
-			double ordinary = pension + rmd + conversion;
+			double ordinary = pension + rmd + streamIncome + conversion;
 			FederalTax f = federal.compute(effFiling, over65, ordinary, ss, qualified, realScale);
 
 			double stateBase = Math.max(0, f.taxableIncome() - (stateTaxesSs ? 0 : f.taxableSocialSecurity()));
@@ -212,6 +213,15 @@ public class LifetimeRothService {
 			if (oti < target) lo = mid; else hi = mid;
 		}
 		return (lo + hi) / 2;
+	}
+
+	/** Today's-dollars income from all streams active at the given age. */
+	private double streamIncomeAt(java.util.List<com.home.Domain.IncomeStream> streams,
+			int age, int currentAge, double inflation) {
+		if (streams == null) return 0;
+		double total = 0;
+		for (var s : streams) total += s.realIncomeAt(age, currentAge, inflation);
+		return total;
 	}
 
 	private static double nn(Double v, double fallback) {

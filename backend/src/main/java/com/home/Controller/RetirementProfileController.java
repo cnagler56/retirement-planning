@@ -65,7 +65,8 @@ public class RetirementProfileController {
 		User user = requireUser(token);
 		RetirementProfile profile = repo.findByUserId(user.getUserId()).orElseGet(RetirementProfile::new);
 		profile.setUserId(user.getUserId());
-		profile.setCurrentAge(body.getCurrentAge());
+		profile.setBirthDate(body.getBirthDate());
+		profile.setSpouseBirthDate(body.getSpouseBirthDate());
 		profile.setRetirementAge(body.getRetirementAge());
 		profile.setCurrentSavings(body.getCurrentSavings());
 		profile.setMonthlyContribution(body.getMonthlyContribution());
@@ -76,12 +77,19 @@ public class RetirementProfileController {
 		profile.setSsClaimAge(body.getSsClaimAge());
 		profile.setPlanThroughAge(body.getPlanThroughAge());
 		profile.setFilingStatus(body.getFilingStatus());
-		profile.setSpouseAge(body.getSpouseAge());
 		profile.setTradBalance(body.getTradBalance());
 		profile.setRothBalance(body.getRothBalance());
 		profile.setTaxableBalance(body.getTaxableBalance());
 		profile.setAnnualPension(body.getAnnualPension());
+		profile.setAnnualHealthcareCost(body.getAnnualHealthcareCost());
+		profile.setHealthcareInflationRate(body.getHealthcareInflationRate());
+		profile.setLtcEnabled(body.isLtcEnabled());
+		profile.setLtcAnnualCost(body.getLtcAnnualCost());
+		profile.setLtcStartAge(body.getLtcStartAge());
+		profile.setLtcYears(body.getLtcYears());
+		profile.setState(body.getState());
 		profile.setStateTaxRate(body.getStateTaxRate());
+		profile.setIncomeStreams(body.getIncomeStreams());
 		return repo.save(profile);
 	}
 

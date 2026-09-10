@@ -23,10 +23,78 @@ export interface Credentials {
   lastName?: string;
 }
 
+export type AccountType = 'TRADITIONAL' | 'ROTH' | 'TAXABLE' | 'OTHER';
+
+export interface Account {
+  id?: number;
+  name: string;
+  type: AccountType;
+  balance: number;
+  asOfDate: string | null;
+}
+
+export interface AccountSummary {
+  traditional: number;
+  roth: number;
+  taxable: number;
+  other: number;
+  total: number;
+}
+
+/** A saved scenario row as stored on the server (inputs are a JSON string). */
+export interface ScenarioRow {
+  id: number;
+  name: string;
+  inputsJson: string;
+}
+
+/** A recurring income stream (pension, rental, annuity, inherited-land rent, …). */
+export interface IncomeStream {
+  label: string;
+  annualAmount: number;
+  startAge: number;
+  /** 0 = for life (through the planning horizon). */
+  endAge: number;
+  /** true = keeps its real value; false = fixed nominal, erodes with inflation. */
+  inflationAdjusted: boolean;
+}
+
+/** Whole years between an ISO birth date (yyyy-mm-dd) and today. */
+export function ageFromBirthDate(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const b = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(b.getTime())) return 0;
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  const m = now.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age -= 1;
+  return Math.max(0, age);
+}
+
+/** Four-digit birth year from an ISO birth date. */
+export function birthYearFrom(iso: string | null | undefined): number {
+  return iso && iso.length >= 4 ? Number(iso.slice(0, 4)) : 0;
+}
+
+/** Recompute the derived ages from the birth dates so they never go stale. */
+export function withDerivedAges<T extends { birthDate?: string; spouseBirthDate?: string }>(
+  p: T,
+): T & { currentAge: number; spouseAge: number } {
+  return {
+    ...p,
+    currentAge: ageFromBirthDate(p.birthDate),
+    spouseAge: ageFromBirthDate(p.spouseBirthDate),
+  };
+}
+
 /** Retirement planning inputs. Rates are decimals (0.07 = 7%). */
 export interface RetirementProfile {
   id?: number;
   userId?: number;
+  /** Birth date (yyyy-mm-dd) — the stored fact; ages are derived from it. */
+  birthDate: string;
+  spouseBirthDate: string;
+  /** Derived from birthDate; kept fresh on load. Read-only in practice. */
   currentAge: number;
   retirementAge: number;
   currentSavings: number;
@@ -47,7 +115,44 @@ export interface RetirementProfile {
   rothBalance: number;
   taxableBalance: number;
   annualPension: number;
+  /** Annual retirement healthcare cost today (premiums + out-of-pocket). */
+  annualHealthcareCost: number;
+  /** Healthcare-specific inflation (decimal), usually above general inflation. */
+  healthcareInflationRate: number;
+  ltcEnabled: boolean;
+  ltcAnnualCost: number;
+  ltcStartAge: number;
+  ltcYears: number;
+  /** State of residence (2-letter code); defaults the state tax rate. */
+  state: string;
   stateTaxRate: number;
+  incomeStreams: IncomeStream[];
+}
+
+export interface StateTaxInfo {
+  code: string;
+  name: string;
+  rate: number;
+}
+
+export interface MedicareEstimateRequest {
+  filingStatus: FilingStatus;
+  magi: number;
+  peopleOnMedicare: number;
+  coverage: 'MEDIGAP' | 'ADVANTAGE';
+  supplementMonthly: number;
+  partDMonthly: number;
+  outOfPocketAnnual: number;
+}
+
+export interface MedicareEstimateResult {
+  partB: number;
+  supplement: number;
+  partD: number;
+  outOfPocket: number;
+  irmaa: number;
+  total: number;
+  peopleOnMedicare: number;
 }
 
 export interface ProjectionPoint {
@@ -93,6 +198,8 @@ export interface Projection {
   balanceAtEnd: number;
   fundedThroughGoal: boolean;
   realReturn: number;
+  annualHealthcareAtRetirement: number;
+  ltcTotalCost: number;
 }
 
 export interface SsBreakevenRequest {
@@ -142,7 +249,9 @@ export interface SsBreakeven {
 
 /** Sensible starting values for a fresh planner. */
 export const DEFAULT_PROFILE: RetirementProfile = {
-  currentAge: 35,
+  birthDate: '1965-01-01',
+  spouseBirthDate: '1965-01-01',
+  currentAge: ageFromBirthDate('1965-01-01'),
   retirementAge: 65,
   currentSavings: 50000,
   monthlyContribution: 800,
@@ -153,12 +262,20 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   ssClaimAge: 67,
   planThroughAge: 95,
   filingStatus: 'MARRIED_JOINT',
-  spouseAge: 35,
+  spouseAge: ageFromBirthDate('1965-01-01'),
   tradBalance: 40000,
   rothBalance: 10000,
   taxableBalance: 0,
   annualPension: 0,
+  annualHealthcareCost: 8000,
+  healthcareInflationRate: 0.05,
+  ltcEnabled: false,
+  ltcAnnualCost: 100000,
+  ltcStartAge: 83,
+  ltcYears: 3,
+  state: '',
   stateTaxRate: 0,
+  incomeStreams: [],
 };
 
 export type TaxSource = 'OUTSIDE' | 'CONVERSION';
@@ -251,6 +368,7 @@ export interface LifetimeRothRequest {
   acaCoverage: boolean;
   acaHouseholdSize: number;
   acaBenchmarkAnnual: number;
+  incomeStreams: IncomeStream[];
 }
 
 export interface LifetimeYearPoint {
@@ -318,6 +436,7 @@ export const DEFAULT_LIFETIME_ROTH: LifetimeRothRequest = {
   acaCoverage: false,
   acaHouseholdSize: 2,
   acaBenchmarkAnnual: 18000,
+  incomeStreams: [],
 };
 
 export const DEFAULT_CONVERSION_TAX: ConversionTaxRequest = {
@@ -388,6 +507,13 @@ export const api = {
   /** Backend liveness probe. */
   health: () => get<Health>('/api/health'),
 
+  /** US states with default income-tax rates (reference data). */
+  listStates: () => get<StateTaxInfo[]>('/api/states'),
+
+  /** Estimate annual Medicare cost from its components. */
+  medicareEstimate: (r: MedicareEstimateRequest) =>
+    send<MedicareEstimateResult>('/api/medicare/estimate', 'POST', r),
+
   /** Returns the user attached to the current session cookie, or throws 401. */
   getMe: () => get<User>('/me'),
 
@@ -413,6 +539,21 @@ export const api = {
 
   /** Remove the server-side profile (when switching to device-only storage). */
   deleteProfile: () => send<void>('/api/profile', 'DELETE'),
+
+  /** Financial accounts and balances. */
+  listAccounts: () => get<Account[]>('/api/accounts'),
+  saveAccounts: (accounts: Account[]) => send<Account[]>('/api/accounts/bulk', 'POST', accounts),
+  deleteAccount: (id: number) => send<void>(`/api/accounts/${id}`, 'DELETE'),
+  accountSummary: () => get<AccountSummary>('/api/accounts/summary'),
+  generateApiKey: () => send<{ apiKey: string }>('/api/accounts/token', 'POST'),
+
+  /** Saved plan variations for the scenario comparison. */
+  listScenarios: () => get<ScenarioRow[]>('/api/scenarios'),
+  createScenario: (name: string, inputsJson: string) =>
+    send<ScenarioRow>('/api/scenarios', 'POST', { name, inputsJson }),
+  updateScenario: (id: number, name: string, inputsJson: string) =>
+    send<ScenarioRow>(`/api/scenarios/${id}`, 'PUT', { name, inputsJson }),
+  deleteScenario: (id: number) => send<void>(`/api/scenarios/${id}`, 'DELETE'),
 
   /** Compute a projection from inputs without saving — the live "what-if" preview. */
   computeProjection: (p: RetirementProfile) => send<Projection>('/api/projection', 'POST', p),

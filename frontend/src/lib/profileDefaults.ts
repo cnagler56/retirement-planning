@@ -5,6 +5,7 @@
  * not yet onboarded), each falls back to its own static default.
  */
 import {
+  birthYearFrom,
   DEFAULT_CONVERSION_TAX,
   DEFAULT_LIFETIME_ROTH,
   DEFAULT_SS,
@@ -13,11 +14,6 @@ import {
   type RetirementProfile,
   type SsBreakevenRequest,
 } from './api';
-
-/** Birth year implied by the current age. */
-function birthYearOf(age: number): number {
-  return new Date().getFullYear() - age;
-}
 
 /** Annual Social Security to assume in the tax models (benefit at FRA × 12). */
 function annualSs(p: RetirementProfile): number {
@@ -28,13 +24,25 @@ export function ssDefaults(p: RetirementProfile | null): SsBreakevenRequest {
   if (!p) return DEFAULT_SS;
   return {
     ...DEFAULT_SS,
-    birthYear: birthYearOf(p.currentAge),
+    birthYear: birthYearFrom(p.birthDate) || new Date().getFullYear() - p.currentAge,
     monthlyAtFra: p.ssMonthlyAtFra || DEFAULT_SS.monthlyAtFra,
     lateAge: p.ssClaimAge || DEFAULT_SS.lateAge,
     inflationRate: p.inflationRate,
     colaRate: p.inflationRate,
     investmentReturn: p.annualReturnRate,
   };
+}
+
+/** Today's-dollars income from streams active at a given age. */
+function streamIncomeAt(p: RetirementProfile, age: number): number {
+  return (p.incomeStreams || []).reduce((sum, s) => {
+    const end = s.endAge > 0 ? s.endAge : Infinity;
+    if (!s.annualAmount || age < s.startAge || age > end) return sum;
+    const real = s.inflationAdjusted
+      ? s.annualAmount
+      : s.annualAmount / Math.pow(1 + p.inflationRate, Math.max(0, age - p.currentAge));
+    return sum + real;
+  }, 0);
 }
 
 export function conversionTaxDefaults(p: RetirementProfile | null): ConversionTaxRequest {
@@ -45,7 +53,7 @@ export function conversionTaxDefaults(p: RetirementProfile | null): ConversionTa
     age: p.currentAge || DEFAULT_CONVERSION_TAX.age,
     spouseAge: p.spouseAge || p.currentAge || DEFAULT_CONVERSION_TAX.spouseAge,
     annualSocialSecurity: annualSs(p),
-    otherOrdinaryIncome: p.annualPension || 0,
+    otherOrdinaryIncome: Math.round((p.annualPension || 0) + streamIncomeAt(p, p.currentAge)),
   };
 }
 
@@ -68,6 +76,7 @@ export function lifetimeDefaults(p: RetirementProfile | null): LifetimeRothReque
     stateTaxRate: p.stateTaxRate || 0,
     // Default the conversion window to the gap years: retirement → RMD age.
     convStartAge: p.retirementAge || DEFAULT_LIFETIME_ROTH.convStartAge,
-    convEndAge: birthYearOf(p.currentAge) >= 1960 ? 74 : 72,
+    convEndAge: (birthYearFrom(p.birthDate) || new Date().getFullYear() - p.currentAge) >= 1960 ? 74 : 72,
+    incomeStreams: p.incomeStreams || [],
   };
 }

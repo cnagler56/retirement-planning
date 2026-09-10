@@ -1,6 +1,5 @@
 package com.home.Service;
 
-import java.time.Year;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -53,8 +52,7 @@ public class MonteCarloService {
 		// Social Security (today's dollars) from the claim age onward.
 		double ssAnnual = 0;
 		if (p.getSsMonthlyAtFra() > 0 && p.getSsClaimAge() >= 62) {
-			int birthYear = Year.now().getValue() - currentAge;
-			ssAnnual = socialSecurity.monthlyBenefit(birthYear, p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
+			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
 		}
 		int claimAge = p.getSsClaimAge();
 
@@ -80,7 +78,9 @@ public class MonteCarloService {
 					balance += annualContribution;
 				} else {
 					double ss = age >= claimAge ? ssAnnual : 0;
-					balance -= (spending - ss); // surplus (SS > spending) is reinvested
+					double streams = streamIncomeAt(p, age);
+					double health = healthcareAt(p, age) + ltcAt(p, age);
+					balance -= (spending + health - ss - streams); // surplus is reinvested
 				}
 
 				if (balance <= 0 && age > retirementAge) {
@@ -123,6 +123,32 @@ public class MonteCarloService {
 			medianDepletion,
 			points
 		);
+	}
+
+	/** Today's-dollars income from all streams active at the given age. */
+	private double streamIncomeAt(RetirementProfile p, int age) {
+		if (p.getIncomeStreams() == null) return 0;
+		double total = 0;
+		for (var s : p.getIncomeStreams()) {
+			total += s.realIncomeAt(age, p.getCurrentAge(), p.getInflationRate());
+		}
+		return total;
+	}
+
+	/** Today's-dollars healthcare cost at a retirement-year age (grows in real terms). */
+	private double healthcareAt(RetirementProfile p, int age) {
+		if (age < p.getRetirementAge() || p.getAnnualHealthcareCost() <= 0) return 0;
+		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
+		return p.getAnnualHealthcareCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
+	}
+
+	/** Today's-dollars long-term-care cost during the LTC window (0 otherwise). */
+	private double ltcAt(RetirementProfile p, int age) {
+		if (!p.isLtcEnabled() || p.getLtcAnnualCost() <= 0) return 0;
+		int start = p.getLtcStartAge();
+		if (age < start || age >= start + Math.max(1, p.getLtcYears())) return 0;
+		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
+		return p.getLtcAnnualCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
 	}
 
 	/** Linear-interpolated percentile of a pre-sorted array. */

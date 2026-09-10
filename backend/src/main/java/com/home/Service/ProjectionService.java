@@ -1,6 +1,5 @@
 package com.home.Service;
 
-import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,8 +56,7 @@ public class ProjectionService {
 		int claimAge = p.getSsClaimAge();
 		double ssMonthly = 0.0;
 		if (p.getSsMonthlyAtFra() > 0 && claimAge >= MIN_CLAIM && claimAge <= MAX_CLAIM) {
-			int birthYear = Year.now().getValue() - currentAge;
-			ssMonthly = socialSecurity.monthlyBenefit(birthYear, p.getSsMonthlyAtFra(), claimAge);
+			ssMonthly = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claimAge);
 		}
 		double ssAnnual = ssMonthly * 12.0;
 
@@ -84,7 +82,9 @@ public class ProjectionService {
 					contributionsTotal += p.getMonthlyContribution();
 				} else {
 					double ss = age >= claimAge ? ssMonthly : 0.0;
-					double withdrawal = spendMonthly - ss; // negative = SS surplus reinvested
+					double streamMonthly = streamIncomeAt(p, age) / 12.0;
+					double healthMonthly = (healthcareAt(p, age) + ltcAt(p, age)) / 12.0;
+						double withdrawal = spendMonthly + healthMonthly - ss - streamMonthly; // negative = surplus reinvested
 					balance -= withdrawal;
 					yearSs += ss;
 					yearWithdrawal += Math.max(0, withdrawal);
@@ -104,7 +104,12 @@ public class ProjectionService {
 
 		if (currentAge >= retirementAge) nestEgg = p.getCurrentSavings();
 
-		double gapAtRetirement = spendingGoal - (retirementAge >= claimAge ? ssAnnual : 0);
+		double gapAtRetirement = spendingGoal + healthcareAt(p, retirementAge) + ltcAt(p, retirementAge)
+			- (retirementAge >= claimAge ? ssAnnual : 0)
+			- streamIncomeAt(p, retirementAge);
+
+		double ltcTotal = 0;
+		for (int age = retirementAge; age < planThroughAge; age++) ltcTotal += ltcAt(p, age);
 
 		return new ProjectionResult(
 			points,
@@ -120,8 +125,40 @@ public class ProjectionService {
 			planThroughAge,
 			round(balance),
 			moneyLastsToAge == null,
-			realAnnual
+			realAnnual,
+			round(healthcareAt(p, retirementAge)),
+			round(ltcTotal)
 		);
+	}
+
+	/** Today's-dollars income from all streams active at the given age. */
+	private double streamIncomeAt(RetirementProfile p, int age) {
+		if (p.getIncomeStreams() == null) return 0;
+		double total = 0;
+		for (var s : p.getIncomeStreams()) {
+			total += s.realIncomeAt(age, p.getCurrentAge(), p.getInflationRate());
+		}
+		return total;
+	}
+
+	/**
+	 * Today's-dollars healthcare cost at a given retirement-year age. Grows in real
+	 * terms because healthcare inflation typically outpaces general inflation.
+	 */
+	private double healthcareAt(RetirementProfile p, int age) {
+		if (age < p.getRetirementAge() || p.getAnnualHealthcareCost() <= 0) return 0;
+		double healthInfl = p.getHealthcareInflationRate();
+		double realGrowth = (1 + healthInfl) / (1 + p.getInflationRate());
+		return p.getAnnualHealthcareCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
+	}
+
+	/** Today's-dollars long-term-care cost during the LTC window (0 otherwise). */
+	private double ltcAt(RetirementProfile p, int age) {
+		if (!p.isLtcEnabled() || p.getLtcAnnualCost() <= 0) return 0;
+		int start = p.getLtcStartAge();
+		if (age < start || age >= start + Math.max(1, p.getLtcYears())) return 0;
+		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
+		return p.getLtcAnnualCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
 	}
 
 	/** Round to whole currency units — projections don't need sub-dollar noise. */
@@ -129,3 +166,4 @@ public class ProjectionService {
 		return Math.round(v);
 	}
 }
+

@@ -46,6 +46,10 @@ public class User {
 	@Enumerated(EnumType.STRING)
 	private Role roles = Role.USER;
 
+	/** Personal API key for scripted access to the accounts API. Never serialized. */
+	@Column(name = "api_token", length = 64)
+	private String apiToken;
+
 	public Long getUserId() { return userId; }
 	public void setUserId(Long userId) { this.userId = userId; }
 
@@ -65,4 +69,8 @@ public class User {
 
 	public Role getRoles() { return roles; }
 	public void setRoles(Role roles) { this.roles = roles; }
+
+	@JsonIgnore
+	public String getApiToken() { return apiToken; }
+	public void setApiToken(String apiToken) { this.apiToken = apiToken; }
 }

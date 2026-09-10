@@ -15,6 +15,12 @@ function Header() {
           <Link href="/plan" className="opacity-80 hover:opacity-100">
             Planner
           </Link>
+          <Link href="/scenarios" className="opacity-80 hover:opacity-100">
+            Compare
+          </Link>
+          <Link href="/accounts" className="opacity-80 hover:opacity-100">
+            Accounts
+          </Link>
           <Link href="/social-security" className="opacity-80 hover:opacity-100">
             Social Security
           </Link>

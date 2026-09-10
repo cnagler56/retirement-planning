@@ -1,14 +1,23 @@
 package com.home.Domain;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
+import java.util.ArrayList;
+import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
@@ -34,8 +43,13 @@ public class RetirementProfile {
 	@JsonProperty
 	private Long userId;
 
+	/** Date of birth — the durable fact; the current age is derived from it. */
 	@JsonProperty
-	private int currentAge;
+	private LocalDate birthDate;
+
+	/** Spouse's date of birth (married-joint). */
+	@JsonProperty
+	private LocalDate spouseBirthDate;
 
 	@JsonProperty
 	private int retirementAge;
@@ -60,10 +74,6 @@ public class RetirementProfile {
 	@JsonProperty
 	private String filingStatus;
 
-	/** Spouse's current age (married-joint only). */
-	@JsonProperty
-	private int spouseAge;
-
 	/** Pre-tax (Traditional IRA / 401k) balance, today's dollars. */
 	@JsonProperty
 	private double tradBalance;
@@ -80,9 +90,43 @@ public class RetirementProfile {
 	@JsonProperty
 	private double annualPension;
 
+	/** Annual retirement healthcare cost today (premiums + out-of-pocket), today's dollars. */
+	@JsonProperty
+	private double annualHealthcareCost;
+
+	/** Healthcare-specific inflation (decimal) — typically higher than general inflation. */
+	@JsonProperty
+	private double healthcareInflationRate;
+
+	/** Whether to model a long-term-care shock late in life. */
+	@JsonProperty
+	private boolean ltcEnabled;
+
+	/** Annual long-term-care cost (today's dollars) during the LTC window. */
+	@JsonProperty
+	private double ltcAnnualCost;
+
+	/** Age the long-term-care need begins. */
+	@JsonProperty
+	private int ltcStartAge;
+
+	/** How many years the long-term-care need lasts. */
+	@JsonProperty
+	private int ltcYears;
+
+	/** State of residence (2-letter code) — used to default the state tax rate. */
+	@JsonProperty
+	private String state;
+
 	/** Flat state income-tax rate (decimal). */
 	@JsonProperty
 	private double stateTaxRate;
+
+	/** Additional income streams — pension, rental, annuity, inherited-land rent, etc. */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "profile_income_streams", joinColumns = @JoinColumn(name = "profile_id"))
+	@JsonProperty
+	private List<IncomeStream> incomeStreams = new ArrayList<>();
 
 	/** Desired gross income per year in retirement, in today's dollars. */
 	@JsonProperty
@@ -114,8 +158,29 @@ public class RetirementProfile {
 	public Long getUserId() { return userId; }
 	public void setUserId(Long userId) { this.userId = userId; }
 
-	public int getCurrentAge() { return currentAge; }
-	public void setCurrentAge(int currentAge) { this.currentAge = currentAge; }
+	public LocalDate getBirthDate() { return birthDate; }
+	public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+	public LocalDate getSpouseBirthDate() { return spouseBirthDate; }
+	public void setSpouseBirthDate(LocalDate spouseBirthDate) { this.spouseBirthDate = spouseBirthDate; }
+
+	/** Current age, derived from the birth date (0 if unset). Serialized for convenience. */
+	@JsonProperty
+	public int getCurrentAge() { return ageFrom(birthDate); }
+
+	/** Spouse's current age, derived from their birth date. */
+	@JsonProperty
+	public int getSpouseAge() { return ageFrom(spouseBirthDate); }
+
+	/** Birth year (for RMD start age and Social Security FRA). */
+	@JsonIgnore
+	public int getBirthYear() {
+		return birthDate != null ? birthDate.getYear() : java.time.Year.now().getValue() - getCurrentAge();
+	}
+
+	private static int ageFrom(LocalDate d) {
+		return d == null ? 0 : Period.between(d, LocalDate.now()).getYears();
+	}
 
 	public int getRetirementAge() { return retirementAge; }
 	public void setRetirementAge(int retirementAge) { this.retirementAge = retirementAge; }
@@ -138,9 +203,6 @@ public class RetirementProfile {
 	public String getFilingStatus() { return filingStatus; }
 	public void setFilingStatus(String filingStatus) { this.filingStatus = filingStatus; }
 
-	public int getSpouseAge() { return spouseAge; }
-	public void setSpouseAge(int spouseAge) { this.spouseAge = spouseAge; }
-
 	public double getTradBalance() { return tradBalance; }
 	public void setTradBalance(double tradBalance) { this.tradBalance = tradBalance; }
 
@@ -153,8 +215,34 @@ public class RetirementProfile {
 	public double getAnnualPension() { return annualPension; }
 	public void setAnnualPension(double annualPension) { this.annualPension = annualPension; }
 
+	public double getAnnualHealthcareCost() { return annualHealthcareCost; }
+	public void setAnnualHealthcareCost(double v) { this.annualHealthcareCost = v; }
+
+	public double getHealthcareInflationRate() { return healthcareInflationRate; }
+	public void setHealthcareInflationRate(double v) { this.healthcareInflationRate = v; }
+
+	public boolean isLtcEnabled() { return ltcEnabled; }
+	public void setLtcEnabled(boolean v) { this.ltcEnabled = v; }
+
+	public double getLtcAnnualCost() { return ltcAnnualCost; }
+	public void setLtcAnnualCost(double v) { this.ltcAnnualCost = v; }
+
+	public int getLtcStartAge() { return ltcStartAge; }
+	public void setLtcStartAge(int v) { this.ltcStartAge = v; }
+
+	public int getLtcYears() { return ltcYears; }
+	public void setLtcYears(int v) { this.ltcYears = v; }
+
+	public String getState() { return state; }
+	public void setState(String state) { this.state = state; }
+
 	public double getStateTaxRate() { return stateTaxRate; }
 	public void setStateTaxRate(double stateTaxRate) { this.stateTaxRate = stateTaxRate; }
+
+	public List<IncomeStream> getIncomeStreams() { return incomeStreams; }
+	public void setIncomeStreams(List<IncomeStream> incomeStreams) {
+		this.incomeStreams = incomeStreams != null ? incomeStreams : new ArrayList<>();
+	}
 
 	public double getSsMonthlyAtFra() { return ssMonthlyAtFra; }
 	public void setSsMonthlyAtFra(double ssMonthlyAtFra) { this.ssMonthlyAtFra = ssMonthlyAtFra; }

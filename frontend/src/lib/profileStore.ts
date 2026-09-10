@@ -7,7 +7,7 @@
  * Local storage is namespaced by user id, so two accounts signed in from the same
  * browser never see each other's device-only data.
  */
-import { api, type RetirementProfile } from './api';
+import { api, withDerivedAges, type RetirementProfile } from './api';
 
 export type StorageMode = 'server' | 'local';
 
@@ -44,10 +44,10 @@ function clearLocal(userId: number) {
   try { localStorage.removeItem(dataKey(userId)); } catch { /* storage blocked */ }
 }
 
-/** Load the profile from wherever this user chose to keep it. */
+/** Load the profile from wherever this user chose to keep it, with ages refreshed from birth dates. */
 export async function loadProfile(userId: number): Promise<RetirementProfile | null> {
-  if (getStorageMode(userId) === 'local') return readLocal(userId);
-  return api.getProfile();
+  const p = getStorageMode(userId) === 'local' ? readLocal(userId) : await api.getProfile();
+  return p ? withDerivedAges(p) : null;
 }
 
 /**

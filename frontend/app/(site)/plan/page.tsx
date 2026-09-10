@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ageFromBirthDate,
   api,
   DEFAULT_PROFILE,
   type MonteCarloResult,
@@ -93,8 +94,14 @@ export default function PlanPage() {
         {/* Inputs */}
         <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
           <Section title="You" />
-          <NumberField label="Current age" value={profile.currentAge} onChange={set('currentAge')} min={16} max={100} />
-          <NumberField label="Retirement age" value={profile.retirementAge} onChange={set('retirementAge')} min={profile.currentAge + 1} max={100} />
+          <div className="flex items-baseline justify-between rounded-md border border-black/10 px-3 py-2 text-sm dark:border-white/10">
+            <span className="opacity-70">Current age</span>
+            <span className="font-medium">
+              {ageFromBirthDate(profile.birthDate)}
+              <Link href="/profile" className="ml-2 text-xs opacity-50 underline underline-offset-2">edit</Link>
+            </span>
+          </div>
+          <NumberField label="Retirement age" value={profile.retirementAge} onChange={set('retirementAge')} min={ageFromBirthDate(profile.birthDate) + 1} max={100} />
           <NumberField label="Plan through age" value={profile.planThroughAge} onChange={set('planThroughAge')} min={profile.retirementAge + 1} max={110} />
 
           <Section title="Savings" />
@@ -160,6 +167,12 @@ export default function PlanPage() {
               <div className="grid gap-4 sm:grid-cols-2 text-sm">
                 <Breakdown label="Total contributed" value={money(projection.totalContributions)} />
                 <Breakdown label="Annual spending goal" value={money(projection.annualSpendingGoal)} />
+                {projection.annualHealthcareAtRetirement > 0 && (
+                  <Breakdown label="Healthcare at retirement" value={`${money(projection.annualHealthcareAtRetirement)}/yr`} />
+                )}
+                {projection.ltcTotalCost > 0 && (
+                  <Breakdown label="Long-term care (total)" value={money(projection.ltcTotalCost)} />
+                )}
               </div>
             </>
           )}
