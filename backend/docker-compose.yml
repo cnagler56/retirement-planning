@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: retirement
-      MYSQL_ROOT_PASSWORD: dev_pw
+      # Set MYSQL_ROOT_PASSWORD in backend/.env (copy from .env.example). Never commit it.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in backend/.env}
     # Host 3307 keeps this independent of any other local MySQL on 3306
     # (e.g. AgriServer's). Container port stays the standard 3306.
     ports:
@@ -13,7 +14,9 @@ services:
     volumes:
       - retirement_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pdev_pw"]
+      # $$ escapes to $ so the container expands its own env var — the password
+      # value never appears in this file.
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
       interval: 5s
       timeout: 5s
       retries: 20
