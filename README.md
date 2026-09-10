@@ -43,15 +43,16 @@ cd retirement-planning
 ### Backend — `backend/`
 
 The database runs in Docker (MySQL on host port **3307**, so it never collides with
-another local MySQL):
+another local MySQL). Set its root password in a gitignored `.env` first:
 
 ```powershell
 cd backend
+Copy-Item .env.example .env   # then edit MYSQL_ROOT_PASSWORD
 docker compose up -d
 ```
 
-Set up local environment variables (the example already has sensible defaults —
-`dev_pw` for the DB and the Docker DB URL; adjust `JAVA_HOME` to your JDK):
+Set up local environment variables — use the **same** password for `DB_PASSWORD`
+as you put in `.env`, and point `JAVA_HOME` at your JDK:
 
 ```powershell
 Copy-Item dev-env.example.ps1 dev-env.ps1
@@ -89,6 +90,5 @@ The app serves on **http://localhost:3000** and talks to the backend at
   the other apps in `~/Projects`.)
 - **Stopping the database:** `docker compose stop` from `backend/`; `docker compose up -d`
   to bring it back.
-- **Secrets:** `dev-env.ps1` and `.env.local` are gitignored. The `dev_pw` in
-  `docker-compose.yml` is a local-only development password; replace it with an env var
-  before making this repo public.
+- **Secrets:** none are committed. `backend/.env` (MySQL password), `dev-env.ps1`,
+  and `frontend/.env.local` are all gitignored; copy them from the `*.example` files.
