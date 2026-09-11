@@ -68,6 +68,15 @@ export interface ExpenseItem {
   inflationAdjusted: boolean;
 }
 
+/** A loan being paid down (mortgage, car, student…). Balance & payment are nominal. */
+export interface Loan {
+  label: string;
+  balance: number;
+  annualRate: number;
+  monthlyPayment: number;
+  startAge: number;
+}
+
 export interface LedgerRow {
   age: number;
   startBalance: number;
@@ -78,6 +87,8 @@ export interface LedgerRow {
   withdrawal: number;
   livingExpenses: number;
   healthcare: number;
+  loanPayment: number;
+  loanBalance: number;
   federalTax: number;
   stateTax: number;
   irmaa: number;
@@ -165,6 +176,7 @@ export interface RetirementProfile {
   stateTaxRate: number;
   incomeStreams: IncomeStream[];
   expenses: ExpenseItem[];
+  loans: Loan[];
 }
 
 export interface StateTaxInfo {
@@ -331,6 +343,7 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   stateTaxRate: 0,
   incomeStreams: [],
   expenses: [],
+  loans: [],
 };
 
 export type TaxSource = 'OUTSIDE' | 'CONVERSION';

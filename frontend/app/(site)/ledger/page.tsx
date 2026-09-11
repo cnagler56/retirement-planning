@@ -57,6 +57,8 @@ export default function LedgerPage() {
                   <Th>Withdraw</Th>
                   <Th>Living exp.</Th>
                   <Th>Healthcare</Th>
+                  <Th>Loan pmt</Th>
+                  <Th>Loan bal.</Th>
                   <Th>Fed tax</Th>
                   <Th>State tax</Th>
                   <Th>IRMAA</Th>
@@ -74,6 +76,8 @@ export default function LedgerPage() {
                     <Td>{cell(r.withdrawal)}</Td>
                     <Td>{cell(r.livingExpenses)}</Td>
                     <Td>{cell(r.healthcare)}</Td>
+                    <Td>{cell(r.loanPayment)}</Td>
+                    <Td>{cell(r.loanBalance)}</Td>
                     <Td>{cell(r.federalTax)}</Td>
                     <Td>{cell(r.stateTax)}</Td>
                     <Td>{cell(r.irmaa)}</Td>

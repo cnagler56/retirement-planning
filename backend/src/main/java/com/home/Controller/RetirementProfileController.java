@@ -100,6 +100,7 @@ public class RetirementProfileController {
 		profile.setStateTaxRate(body.getStateTaxRate());
 		profile.setIncomeStreams(body.getIncomeStreams());
 		profile.setExpenses(body.getExpenses());
+		profile.setLoans(body.getLoans());
 		return repo.save(profile);
 	}
 

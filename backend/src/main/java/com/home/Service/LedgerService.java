@@ -12,6 +12,7 @@ import com.home.Domain.RetirementProfile;
 import com.home.tax.FederalTaxService;
 import com.home.tax.FederalTaxService.FederalTax;
 import com.home.tax.IrmaaTable;
+import com.home.tax.LoanSchedule;
 import com.home.tax.RmdTable;
 import com.home.tax.TaxConstants.Filing;
 
@@ -79,6 +80,8 @@ public class LedgerService {
 			taxable *= (1 + realReturn);
 		}
 
+		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
+
 		List<LedgerRow> rows = new ArrayList<>();
 		Integer moneyLastsToAge = null;
 
@@ -95,7 +98,9 @@ public class LedgerService {
 			double qualified = taxable * yieldRate;
 			double living = livingExpensesAt(p, age);
 			double health = healthcareAt(p, age) + ltcAt(p, age);
-			double expenses = living + health;
+			double loanPayment = loans.paymentAt(age);
+			double loanBalance = loans.balanceAt(age);
+			double expenses = living + health + loanPayment;
 
 			double rmd = RmdTable.required(age, birthYear, trad);
 
@@ -140,7 +145,7 @@ public class LedgerService {
 			rows.add(new LedgerRow(
 				age, round(startBalance), round(ss), round(pension), round(streams),
 				round(rmd), round(wTaxable + wTradExtra + wRoth),
-				round(living), round(health),
+				round(living), round(health), round(loanPayment), round(loanBalance),
 				round(fedTax), round(stateTax), round(irmaa), round(taxableSs),
 				round(trad), round(roth), round(taxable), round(endTotal), shortfall));
 		}

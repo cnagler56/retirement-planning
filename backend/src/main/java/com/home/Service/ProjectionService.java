@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.home.Domain.ProjectionResult;
 import com.home.Domain.ProjectionResult.ProjectionPoint;
 import com.home.Domain.RetirementProfile;
+import com.home.tax.LoanSchedule;
 
 /**
  * Turns a {@link RetirementProfile} into a full-lifetime retirement projection,
@@ -60,6 +61,8 @@ public class ProjectionService {
 		}
 		double ssAnnual = ssMonthly * 12.0;
 
+		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThroughAge, p.getInflationRate());
+
 		double balance = p.getCurrentSavings();
 		double contributionsTotal = 0.0;
 		double nestEgg = balance;
@@ -83,7 +86,7 @@ public class ProjectionService {
 				} else {
 					double ss = age >= claimAge ? ssMonthly : 0.0;
 					double streamMonthly = streamIncomeAt(p, age) / 12.0;
-					double healthMonthly = (healthcareAt(p, age) + ltcAt(p, age)) / 12.0;
+					double healthMonthly = (healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age)) / 12.0;
 						double withdrawal = spendMonthly + healthMonthly - ss - streamMonthly; // negative = surplus reinvested
 					balance -= withdrawal;
 					yearSs += ss;
@@ -105,6 +108,7 @@ public class ProjectionService {
 		if (currentAge >= retirementAge) nestEgg = p.getCurrentSavings();
 
 		double gapAtRetirement = spendingGoal + healthcareAt(p, retirementAge) + ltcAt(p, retirementAge)
+			+ loans.paymentAt(retirementAge)
 			- (retirementAge >= claimAge ? ssAnnual : 0)
 			- streamIncomeAt(p, retirementAge);
 

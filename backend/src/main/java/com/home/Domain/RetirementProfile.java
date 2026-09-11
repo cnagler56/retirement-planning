@@ -134,6 +134,12 @@ public class RetirementProfile {
 	@JsonProperty
 	private List<ExpenseItem> expenses = new ArrayList<>();
 
+	/** Loans / debts being paid down (mortgage, car, student, …). */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "profile_loans", joinColumns = @JoinColumn(name = "profile_id"))
+	@JsonProperty
+	private List<Loan> loans = new ArrayList<>();
+
 	/** Desired gross income per year in retirement, in today's dollars. */
 	@JsonProperty
 	private double desiredAnnualIncome;
@@ -253,6 +259,11 @@ public class RetirementProfile {
 	public List<ExpenseItem> getExpenses() { return expenses; }
 	public void setExpenses(List<ExpenseItem> expenses) {
 		this.expenses = expenses != null ? expenses : new ArrayList<>();
+	}
+
+	public List<Loan> getLoans() { return loans; }
+	public void setLoans(List<Loan> loans) {
+		this.loans = loans != null ? loans : new ArrayList<>();
 	}
 
 	public double getSsMonthlyAtFra() { return ssMonthlyAtFra; }

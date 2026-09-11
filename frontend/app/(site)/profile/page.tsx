@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
+import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type Loan, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
@@ -98,6 +98,16 @@ export default function ProfilePage() {
     setP((prev) => ({ ...prev, expenses: prev.expenses.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
   const removeExpense = (i: number) =>
     setP((prev) => ({ ...prev, expenses: prev.expenses.filter((_, idx) => idx !== i) }));
+
+  const addLoan = () =>
+    setP((prev) => ({
+      ...prev,
+      loans: [...(prev.loans || []), { label: '', balance: 0, annualRate: 0.05, monthlyPayment: 0, startAge: 0 }],
+    }));
+  const updateLoan = (i: number, patch: Partial<Loan>) =>
+    setP((prev) => ({ ...prev, loans: prev.loans.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }));
+  const removeLoan = (i: number) =>
+    setP((prev) => ({ ...prev, loans: prev.loans.filter((_, idx) => idx !== i) }));
 
   async function onSave() {
     if (!user) return;
@@ -266,6 +276,36 @@ export default function ProfilePage() {
                   <span className="opacity-70">Keeps pace with inflation</span>
                 </label>
                 <button type="button" onClick={() => removeExpense(i)} className="text-sm text-red-500 underline underline-offset-4">
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Loans &amp; debts</h2>
+          <button type="button" onClick={addLoan} className="text-sm underline underline-offset-4">+ Add loan</button>
+        </div>
+        <p className="mb-3 text-xs opacity-55">
+          Mortgage, car, student loans. Each amortizes down over time; the payment shows as an expense and the
+          balance is tracked in the year-by-year table. A fixed payment loses real value as inflation rises.
+        </p>
+        {(p.loans || []).length === 0 && <p className="text-sm opacity-50">No loans.</p>}
+        <div className="space-y-3">
+          {(p.loans || []).map((l, i) => (
+            <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Label" value={l.label} placeholder="e.g. Mortgage"
+                  onChange={(v) => updateLoan(i, { label: v })} />
+                <Num label="Balance owed" value={l.balance} onChange={(v) => updateLoan(i, { balance: v })} min={0} step={1000} prefix="$" />
+                <Num label="Monthly payment" value={l.monthlyPayment} onChange={(v) => updateLoan(i, { monthlyPayment: v })} min={0} step={50} prefix="$" />
+                <Pct label="Interest rate" value={l.annualRate} onChange={(v) => updateLoan(i, { annualRate: v })} max={30} />
+              </div>
+              <div className="mt-2 text-right">
+                <button type="button" onClick={() => removeLoan(i)} className="text-sm text-red-500 underline underline-offset-4">
                   Remove
                 </button>
               </div>

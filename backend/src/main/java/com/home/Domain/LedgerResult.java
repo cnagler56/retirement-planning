@@ -48,6 +48,8 @@ public record LedgerResult(
 			double withdrawal,
 			double livingExpenses,
 			double healthcare,
+			double loanPayment,
+			double loanBalance,
 			double federalTax,
 			double stateTax,
 			double irmaa,

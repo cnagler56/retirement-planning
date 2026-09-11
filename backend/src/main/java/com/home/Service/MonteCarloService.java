@@ -11,6 +11,7 @@ import com.home.Domain.MonteCarloRequest;
 import com.home.Domain.MonteCarloResult;
 import com.home.Domain.MonteCarloResult.Band;
 import com.home.Domain.RetirementProfile;
+import com.home.tax.LoanSchedule;
 
 /**
  * Monte Carlo simulation of the retirement drawdown. Instead of one fixed return,
@@ -55,6 +56,7 @@ public class MonteCarloService {
 			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
 		}
 		int claimAge = p.getSsClaimAge();
+		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
 
 		Random random = new Random(SEED);
 		int successes = 0;
@@ -79,7 +81,7 @@ public class MonteCarloService {
 				} else {
 					double ss = age >= claimAge ? ssAnnual : 0;
 					double streams = streamIncomeAt(p, age);
-					double health = healthcareAt(p, age) + ltcAt(p, age);
+					double health = healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age);
 					balance -= (spending + health - ss - streams); // surplus is reinvested
 				}
 
@@ -145,6 +147,7 @@ public class MonteCarloService {
 			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
 		}
 		int claimAge = p.getSsClaimAge();
+		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
 
 		Random random = new Random(SEED);
 		int successes = 0;
