@@ -105,6 +105,7 @@ public class RetirementProfileController {
 		profile.setIncomeStreams(body.getIncomeStreams());
 		profile.setExpenses(body.getExpenses());
 		profile.setLoans(body.getLoans());
+		profile.setAssets(body.getAssets());
 		return repo.save(profile);
 	}
 

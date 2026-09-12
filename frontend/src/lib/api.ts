@@ -49,14 +49,24 @@ export interface ScenarioRow {
 }
 
 /** A recurring income stream (pension, rental, annuity, inherited-land rent, …). */
+/** Whose income a stream is, and what kind — the kind sets whether it's taxable. */
+export type IncomeOwner = 'SELF' | 'SPOUSE';
+export type IncomeType =
+  | 'EMPLOYMENT' | 'SELF_EMPLOYMENT' | 'RENTAL' | 'PENSION' | 'ANNUITY' | 'TAXABLE_OTHER' | 'TAX_FREE';
+
 export interface IncomeStream {
   label: string;
   annualAmount: number;
+  /** Start/end ages are in the OWNER's age (self or spouse). */
   startAge: number;
   /** 0 = for life (through the planning horizon). */
   endAge: number;
   /** true = keeps its real value; false = fixed nominal, erodes with inflation. */
   inflationAdjusted: boolean;
+  /** Whose income this is; the ages above are this person's ages. */
+  owner: IncomeOwner;
+  /** Kind of income; everything but TAX_FREE is taxed as ordinary income. */
+  type: IncomeType;
 }
 
 /** An itemized retirement expense (base living, travel, mortgage, one-off…). */
@@ -116,6 +126,14 @@ export interface LoanAmortizationSummary {
 export interface LoanAmortization {
   summary: LoanAmortizationSummary;
   rows: LoanAmortizationRow[];
+}
+
+/** Net-worth asset held outside the draw-down buckets (not spent in the plan). */
+export type AssetType = 'REAL_ESTATE' | 'CASH' | 'VEHICLE' | 'BUSINESS' | 'OTHER';
+export interface Asset {
+  label: string;
+  type: AssetType;
+  value: number;
 }
 
 export interface LedgerRow {
@@ -222,6 +240,7 @@ export interface RetirementProfile {
   incomeStreams: IncomeStream[];
   expenses: ExpenseItem[];
   loans: Loan[];
+  assets: Asset[];
 }
 
 export interface StateTaxInfo {
@@ -391,6 +410,7 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   incomeStreams: [],
   expenses: [],
   loans: [],
+  assets: [],
 };
 
 export type TaxSource = 'OUTSIDE' | 'CONVERSION';

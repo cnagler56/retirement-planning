@@ -95,6 +95,7 @@ public class LedgerService {
 			double ss = socialSecurity.householdAnnualAt(p, age);
 			double pension = incomeAt(p, age, "pension");
 			double streams = streamIncomeAt(p, age);
+			double taxableStreams = streamIncomeAt(p, age, true);
 			double qualified = taxable * yieldRate;
 			double living = livingExpensesAt(p, age);
 			double health = healthcareAt(p, age) + ltcAt(p, age);
@@ -116,7 +117,7 @@ public class LedgerService {
 				wRoth = Math.min(roth, remaining); remaining -= wRoth;
 				shortfall = remaining > 1;
 
-				double ordinary = pension + rmd + wTradExtra;
+				double ordinary = pension + rmd + wTradExtra + taxableStreams;
 				FederalTax f = federal.compute(filing, over65, ordinary, ss, qualified, realScale);
 				taxableSs = f.taxableSocialSecurity();
 				fedTax = f.totalTax();
@@ -163,9 +164,21 @@ public class LedgerService {
 	}
 
 	private double streamIncomeAt(RetirementProfile p, int age) {
+		return streamIncomeAt(p, age, false);
+	}
+
+	/** Stream income at a primary age; {@code taxableOnly} restricts to taxable streams.
+	 *  A spouse-owned stream's ages are the spouse's, translated onto the primary timeline. */
+	private double streamIncomeAt(RetirementProfile p, int age, boolean taxableOnly) {
 		if (p.getIncomeStreams() == null) return 0;
+		int currentAge = p.getCurrentAge();
+		int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
 		double total = 0;
-		for (var s : p.getIncomeStreams()) total += s.realIncomeAt(age, p.getCurrentAge(), p.getInflationRate());
+		for (var s : p.getIncomeStreams()) {
+			if (taxableOnly && !s.isTaxable()) continue;
+			int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
+			total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
+		}
 		return total;
 	}
 

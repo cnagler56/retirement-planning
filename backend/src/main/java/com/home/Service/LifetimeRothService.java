@@ -220,7 +220,7 @@ public class LifetimeRothService {
 			int age, int currentAge, double inflation) {
 		if (streams == null) return 0;
 		double total = 0;
-		for (var s : streams) total += s.realIncomeAt(age, currentAge, inflation);
+		for (var s : streams) total += s.realIncomeAt(age, age - currentAge, inflation);
 		return total;
 	}
 

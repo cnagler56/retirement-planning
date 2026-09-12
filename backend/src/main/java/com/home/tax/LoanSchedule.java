@@ -55,19 +55,26 @@ public final class LoanSchedule {
 			double[] yearOut = new double[n];
 			double[] yearEndBal = new double[n];
 			boolean[] seen = new boolean[n];
+			int firstActive = -1;
 			for (LoanAmortization.Row r : rows) {
 				int i = r.age() - currentAge;
 				if (i < 0 || i >= n) continue;
 				yearOut[i] += r.payment() + r.extra();
 				yearEndBal[i] = r.endingBalance(); // last month wins
 				seen[i] = true;
+				if (firstActive < 0) firstActive = i;
 			}
 			for (int i = 0; i < n; i++) {
 				// Loan payments and balances are nominal-fixed and shown as such —
 				// a fixed mortgage payment stays constant, matching the statement and
 				// the amortization schedule (not deflated to real dollars).
 				payment[i] += yearOut[i];
-				if (seen[i]) balance[i] += Math.max(0, yearEndBal[i]);
+				if (seen[i]) {
+					// Balance owed *at* this age = start of the year (what a statement
+					// shows when you turn that age), i.e. the prior year's ending balance.
+					double startOfYear = (i == firstActive) ? loan.getBalance() : yearEndBal[i - 1];
+					balance[i] += Math.max(0, startOfYear);
+				}
 			}
 		}
 		return new Schedule(payment, balance, currentAge);

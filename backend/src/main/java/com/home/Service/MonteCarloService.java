@@ -171,12 +171,16 @@ public class MonteCarloService {
 		return (double) successes / trials;
 	}
 
-	/** Today's-dollars income from all streams active at the given age. */
+	/** Today's-dollars income from all streams active at the given age. A spouse-owned
+	 *  stream's ages are the spouse's, translated onto the primary timeline. */
 	private double streamIncomeAt(RetirementProfile p, int age) {
 		if (p.getIncomeStreams() == null) return 0;
+		int currentAge = p.getCurrentAge();
+		int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
 		double total = 0;
 		for (var s : p.getIncomeStreams()) {
-			total += s.realIncomeAt(age, p.getCurrentAge(), p.getInflationRate());
+			int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
+			total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
 		}
 		return total;
 	}

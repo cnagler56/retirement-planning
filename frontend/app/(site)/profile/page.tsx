@@ -3,22 +3,31 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
+import { ageFromBirthDate, api, DEFAULT_PROFILE, type Asset, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
 import LoansEditor from '@/src/components/LoansEditor';
 
-type TabId = 'household' | 'accounts' | 'income' | 'expenses' | 'loans' | 'healthcare' | 'assumptions' | 'storage';
+type TabId = 'household' | 'accounts' | 'assets' | 'income' | 'expenses' | 'loans' | 'healthcare' | 'assumptions' | 'storage';
 const PROFILE_TABS: { id: TabId; label: string }[] = [
   { id: 'household', label: 'Household' },
   { id: 'accounts', label: 'Accounts' },
+  { id: 'assets', label: 'Assets' },
   { id: 'income', label: 'Income' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'loans', label: 'Loans' },
   { id: 'healthcare', label: 'Healthcare' },
   { id: 'assumptions', label: 'Assumptions' },
   { id: 'storage', label: 'Storage' },
+];
+
+const ASSET_TYPES: [string, string][] = [
+  ['REAL_ESTATE', 'Real estate'],
+  ['CASH', 'Cash / savings'],
+  ['VEHICLE', 'Vehicle'],
+  ['BUSINESS', 'Business'],
+  ['OTHER', 'Other'],
 ];
 
 export default function ProfilePage() {
@@ -89,7 +98,7 @@ export default function ProfilePage() {
       ...prev,
       incomeStreams: [
         ...(prev.incomeStreams || []),
-        { label: '', annualAmount: 0, startAge: ageFromBirthDate(prev.birthDate), endAge: 0, inflationAdjusted: true },
+        { label: '', annualAmount: 0, startAge: ageFromBirthDate(prev.birthDate), endAge: 0, inflationAdjusted: true, owner: 'SELF', type: 'TAXABLE_OTHER' },
       ],
     }));
   const updateStream = (i: number, patch: Partial<IncomeStream>) =>
@@ -112,6 +121,13 @@ export default function ProfilePage() {
     setP((prev) => ({ ...prev, expenses: prev.expenses.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
   const removeExpense = (i: number) =>
     setP((prev) => ({ ...prev, expenses: prev.expenses.filter((_, idx) => idx !== i) }));
+
+  const addAsset = () =>
+    setP((prev) => ({ ...prev, assets: [...(prev.assets || []), { label: '', type: 'REAL_ESTATE', value: 0 }] }));
+  const updateAsset = (i: number, patch: Partial<Asset>) =>
+    setP((prev) => ({ ...prev, assets: (prev.assets || []).map((a, idx) => (idx === i ? { ...a, ...patch } : a)) }));
+  const removeAsset = (i: number) =>
+    setP((prev) => ({ ...prev, assets: (prev.assets || []).filter((_, idx) => idx !== i) }));
 
   async function onSave() {
     if (!user) return;
@@ -227,6 +243,53 @@ export default function ProfilePage() {
       </Group>
       )}
 
+      {tab === 'assets' && (
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Assets &amp; net worth</h2>
+          <button type="button" onClick={addAsset} className="text-sm underline underline-offset-4">+ Add asset</button>
+        </div>
+        <p className="mb-3 text-xs opacity-55">
+          Real estate, cash, vehicles, a business — anything you own outside your retirement accounts. These are
+          tracked for your net-worth picture only; they aren&apos;t spent or sold in the projection. Values in today&apos;s dollars.
+        </p>
+        {(p.assets || []).length === 0 && (
+          <p className="text-sm opacity-50">No assets yet.</p>
+        )}
+        <div className="space-y-3">
+          {(p.assets || []).map((a, i) => (
+            <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <TextField label="Label" value={a.label} placeholder="e.g. Primary home"
+                  onChange={(v) => updateAsset(i, { label: v })} />
+                <SelectField label="Type" value={a.type}
+                  onChange={(v) => updateAsset(i, { type: v as Asset['type'] })} options={ASSET_TYPES} />
+                <Num label="Value" value={a.value} onChange={(v) => updateAsset(i, { value: v })} min={0} step={5000} prefix="$" />
+              </div>
+              <div className="mt-2 text-right">
+                <button type="button" onClick={() => removeAsset(i)} className="text-sm text-red-500 underline underline-offset-4">
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Net-worth summary */}
+        <div className="mt-5 rounded-lg bg-black/5 p-4 text-sm dark:bg-white/10">
+          <NetWorthLine label="Other assets (this tab)" value={(p.assets || []).reduce((s, a) => s + (a.value || 0), 0)} />
+          <NetWorthLine label="Retirement accounts" value={p.tradBalance + p.rothBalance + p.taxableBalance} />
+          <NetWorthLine label="Debts (loan balances)" value={-(p.loans || []).reduce((s, l) => s + (l.balance || 0), 0)} />
+          <div className="mt-1 border-t border-black/10 pt-1 dark:border-white/10">
+            <NetWorthLine label="Estimated net worth" bold
+              value={(p.assets || []).reduce((s, a) => s + (a.value || 0), 0)
+                + p.tradBalance + p.rothBalance + p.taxableBalance
+                - (p.loans || []).reduce((s, l) => s + (l.balance || 0), 0)} />
+          </div>
+        </div>
+      </section>
+      )}
+
       {tab === 'income' && (
       <>
       <Group title="Retirement income">
@@ -250,9 +313,10 @@ export default function ProfilePage() {
           <button type="button" onClick={addStream} className="text-sm underline underline-offset-4">+ Add income</button>
         </div>
         <p className="mb-3 text-xs opacity-55">
-          Anything beyond savings and Social Security — a pension, rental income, an annuity, or future income
-          like rent from inherited land. Set a start age, and mark it inflation-adjusted if it keeps pace with
-          inflation. Leave &quot;until age&quot; at 0 for lifelong income.
+          Anything beyond savings and Social Security — employment, rental, business, a pension, or future income
+          like rent from inherited land. Pick whose income it is and what kind (the kind sets whether it&apos;s taxed).
+          The start/end ages are that person&apos;s ages — so a spouse who keeps working can end at her own retirement age.
+          Leave &quot;until age&quot; at 0 for lifelong income.
         </p>
         {(p.incomeStreams || []).length === 0 && (
           <p className="text-sm opacity-50">No extra income streams yet.</p>
@@ -261,11 +325,29 @@ export default function ProfilePage() {
           {(p.incomeStreams || []).map((s, i) => (
             <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
               <div className="grid gap-3 sm:grid-cols-2">
-                <TextField label="Label" value={s.label} placeholder="e.g. Inherited land rent"
+                <TextField label="Label" value={s.label} placeholder="e.g. Spouse's salary"
                   onChange={(v) => updateStream(i, { label: v })} />
                 <Num label="Amount per year" value={s.annualAmount} onChange={(v) => updateStream(i, { annualAmount: v })} min={0} step={1000} prefix="$" />
-                <Num label="Starts at age" value={s.startAge} onChange={(v) => updateStream(i, { startAge: v })} min={0} max={110} />
-                <Num label="Until age (0 = for life)" value={s.endAge} onChange={(v) => updateStream(i, { endAge: v })} min={0} max={110} />
+                {married && (
+                  <SelectField label="Whose income" value={s.owner || 'SELF'}
+                    onChange={(v) => updateStream(i, { owner: v as IncomeStream['owner'] })}
+                    options={[['SELF', 'You'], ['SPOUSE', 'Your spouse']]} />
+                )}
+                <SelectField label="Kind of income" value={s.type || 'TAXABLE_OTHER'}
+                  onChange={(v) => updateStream(i, { type: v as IncomeStream['type'] })}
+                  options={[
+                    ['EMPLOYMENT', 'Employment / wages'],
+                    ['SELF_EMPLOYMENT', 'Self-employment / business'],
+                    ['RENTAL', 'Rental'],
+                    ['PENSION', 'Pension'],
+                    ['ANNUITY', 'Annuity'],
+                    ['TAXABLE_OTHER', 'Other taxable'],
+                    ['TAX_FREE', 'Tax-free (Roth, muni, return of capital)'],
+                  ]} />
+                <Num label={s.owner === 'SPOUSE' ? "Starts at spouse's age" : 'Starts at your age'}
+                  value={s.startAge} onChange={(v) => updateStream(i, { startAge: v })} min={0} max={110} />
+                <Num label={s.owner === 'SPOUSE' ? "Until spouse's age (0 = for life)" : 'Until your age (0 = for life)'}
+                  value={s.endAge} onChange={(v) => updateStream(i, { endAge: v })} min={0} max={110} />
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <label className="flex items-center gap-2 text-sm">
@@ -484,6 +566,31 @@ function DateField({ label, value, onChange }: {
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40" />
       {value && <span className="mt-1 block text-xs opacity-45">Age {age}</span>}
+    </label>
+  );
+}
+
+function NetWorthLine({ label, value, bold = false }: { label: string; value: number; bold?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between ${bold ? 'font-semibold' : ''}`}>
+      <span className="opacity-60">{label}</span>
+      <span className={value < 0 ? 'text-red-500' : ''}>{value < 0 ? `−${money(-value)}` : money(value)}</span>
+    </div>
+  );
+}
+
+function SelectField({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void; options: [string, string][];
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block opacity-70">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40">
+        {options.map(([v, l]) => (
+          <option key={v} value={v} className="bg-white text-black dark:bg-neutral-900 dark:text-white">{l}</option>
+        ))}
+      </select>
     </label>
   );
 }
