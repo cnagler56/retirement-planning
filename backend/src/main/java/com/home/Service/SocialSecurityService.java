@@ -155,6 +155,27 @@ public class SocialSecurityService {
 		return benefitAt(clampAge(claimAge), fraMonths(birthYear), pia);
 	}
 
+	/**
+	 * Household Social Security income (annual, today's dollars) at a given primary
+	 * age — the primary's benefit once they claim, plus the spouse's once the
+	 * spouse reaches their own claim age (translated to the primary's timeline).
+	 */
+	public double householdAnnualAt(com.home.Domain.RetirementProfile p, int primaryAge) {
+		double total = 0;
+		int claim = p.getSsClaimAge();
+		if (p.getSsMonthlyAtFra() > 0 && claim >= MIN_CLAIM && primaryAge >= claim) {
+			total += monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claim) * 12;
+		}
+		int sClaim = p.getSpouseSsClaimAge();
+		if (p.getSpouseSsMonthlyAtFra() > 0 && sClaim >= MIN_CLAIM) {
+			int spouseStart = sClaim - (p.getSpouseAge() - p.getCurrentAge()); // in the primary's age terms
+			if (primaryAge >= spouseStart) {
+				total += monthlyBenefit(p.getSpouseBirthYear(), p.getSpouseSsMonthlyAtFra(), sClaim) * 12;
+			}
+		}
+		return total;
+	}
+
 	/** Monthly benefit if first claimed at {@code claimAge}, given FRA and PIA. */
 	private double benefitAt(int claimAge, int fraMonths, double pia) {
 		int claimMonths = claimAge * 12;

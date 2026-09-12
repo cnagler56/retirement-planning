@@ -3,10 +3,23 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type Loan, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
+import { ageFromBirthDate, api, DEFAULT_PROFILE, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
+import LoansEditor from '@/src/components/LoansEditor';
+
+type TabId = 'household' | 'accounts' | 'income' | 'expenses' | 'loans' | 'healthcare' | 'assumptions' | 'storage';
+const PROFILE_TABS: { id: TabId; label: string }[] = [
+  { id: 'household', label: 'Household' },
+  { id: 'accounts', label: 'Accounts' },
+  { id: 'income', label: 'Income' },
+  { id: 'expenses', label: 'Expenses' },
+  { id: 'loans', label: 'Loans' },
+  { id: 'healthcare', label: 'Healthcare' },
+  { id: 'assumptions', label: 'Assumptions' },
+  { id: 'storage', label: 'Storage' },
+];
 
 export default function ProfilePage() {
   const { user, loading } = useUser();
@@ -57,6 +70,7 @@ export default function ProfilePage() {
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>('household');
 
   useEffect(() => {
     if (!user || loaded) return;
@@ -98,16 +112,6 @@ export default function ProfilePage() {
     setP((prev) => ({ ...prev, expenses: prev.expenses.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
   const removeExpense = (i: number) =>
     setP((prev) => ({ ...prev, expenses: prev.expenses.filter((_, idx) => idx !== i) }));
-
-  const addLoan = () =>
-    setP((prev) => ({
-      ...prev,
-      loans: [...(prev.loans || []), { label: '', balance: 0, annualRate: 0.05, monthlyPayment: 0, startAge: 0 }],
-    }));
-  const updateLoan = (i: number, patch: Partial<Loan>) =>
-    setP((prev) => ({ ...prev, loans: prev.loans.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }));
-  const removeLoan = (i: number) =>
-    setP((prev) => ({ ...prev, loans: prev.loans.filter((_, idx) => idx !== i) }));
 
   async function onSave() {
     if (!user) return;
@@ -157,6 +161,24 @@ export default function ProfilePage() {
         </p>
       </div>
 
+      <div className="flex flex-wrap gap-1 border-b border-white/10">
+        {PROFILE_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`border-b-2 px-3 py-2 text-sm transition-colors ${
+              tab === t.id
+                ? 'border-cyan-400 font-medium text-cyan-300'
+                : 'border-transparent opacity-60 hover:opacity-100'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'storage' && (
       <section className="rounded-lg border border-black/10 p-4 dark:border-white/10">
         <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Where to store your financial details</h2>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -178,7 +200,9 @@ export default function ProfilePage() {
           {mode === 'local' && ' Saving will remove any copy already on our servers.'}
         </p>
       </section>
+      )}
 
+      {tab === 'household' && (
       <Group title="Household">
         <div className="text-sm sm:col-span-2">
           <span className="mb-1 block opacity-70">Filing status</span>
@@ -192,20 +216,32 @@ export default function ProfilePage() {
         <Num label="Target retirement age" value={p.retirementAge} onChange={set('retirementAge')} min={ageFromBirthDate(p.birthDate) + 1} max={100} />
         <Num label="Plan through age" value={p.planThroughAge} onChange={set('planThroughAge')} min={p.retirementAge + 1} max={110} />
       </Group>
+      )}
 
+      {tab === 'accounts' && (
       <Group title="Savings & accounts">
         <Num label="Traditional / pre-tax (IRA, 401k)" value={p.tradBalance} onChange={set('tradBalance')} min={0} step={5000} prefix="$" />
         <Num label="Roth" value={p.rothBalance} onChange={set('rothBalance')} min={0} step={5000} prefix="$" />
         <Num label="Taxable brokerage" value={p.taxableBalance} onChange={set('taxableBalance')} min={0} step={5000} prefix="$" />
         <Num label="Monthly contribution" value={p.monthlyContribution} onChange={set('monthlyContribution')} min={0} step={50} prefix="$" />
       </Group>
+      )}
 
+      {tab === 'income' && (
+      <>
       <Group title="Retirement income">
         <Num label="Desired annual income" value={p.desiredAnnualIncome} onChange={set('desiredAnnualIncome')} min={0} step={1000} prefix="$" />
         <Num label="Annual pension" value={p.annualPension} onChange={set('annualPension')} min={0} step={1000} prefix="$" />
         <Num label="Social Security at full retirement age (monthly)" value={p.ssMonthlyAtFra} onChange={set('ssMonthlyAtFra')} min={0} step={50} prefix="$"
           hint="From your SSA statement (ssa.gov/myaccount)." />
         <Num label="Plan to claim Social Security at age" value={p.ssClaimAge} onChange={set('ssClaimAge')} min={62} max={70} />
+        {married && (
+          <>
+            <Num label="Spouse's Social Security at FRA (monthly)" value={p.spouseSsMonthlyAtFra} onChange={set('spouseSsMonthlyAtFra')} min={0} step={50} prefix="$"
+              hint="Their own benefit. 0 if none / not applicable." />
+            <Num label="Spouse plans to claim at age" value={p.spouseSsClaimAge} onChange={set('spouseSsClaimAge')} min={62} max={70} />
+          </>
+        )}
       </Group>
 
       <section>
@@ -245,7 +281,10 @@ export default function ProfilePage() {
           ))}
         </div>
       </section>
+      </>
+      )}
 
+      {tab === 'expenses' && (
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Retirement expenses</h2>
@@ -283,37 +322,13 @@ export default function ProfilePage() {
           ))}
         </div>
       </section>
+      )}
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">Loans &amp; debts</h2>
-          <button type="button" onClick={addLoan} className="text-sm underline underline-offset-4">+ Add loan</button>
-        </div>
-        <p className="mb-3 text-xs opacity-55">
-          Mortgage, car, student loans. Each amortizes down over time; the payment shows as an expense and the
-          balance is tracked in the year-by-year table. A fixed payment loses real value as inflation rises.
-        </p>
-        {(p.loans || []).length === 0 && <p className="text-sm opacity-50">No loans.</p>}
-        <div className="space-y-3">
-          {(p.loans || []).map((l, i) => (
-            <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField label="Label" value={l.label} placeholder="e.g. Mortgage"
-                  onChange={(v) => updateLoan(i, { label: v })} />
-                <Num label="Balance owed" value={l.balance} onChange={(v) => updateLoan(i, { balance: v })} min={0} step={1000} prefix="$" />
-                <Num label="Monthly payment" value={l.monthlyPayment} onChange={(v) => updateLoan(i, { monthlyPayment: v })} min={0} step={50} prefix="$" />
-                <Pct label="Interest rate" value={l.annualRate} onChange={(v) => updateLoan(i, { annualRate: v })} max={30} />
-              </div>
-              <div className="mt-2 text-right">
-                <button type="button" onClick={() => removeLoan(i)} className="text-sm text-red-500 underline underline-offset-4">
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {tab === 'loans' && (
+        <LoansEditor profile={p} onLoansChange={(loans) => setP((prev) => ({ ...prev, loans }))} />
+      )}
 
+      {tab === 'healthcare' && (
       <Group title="Healthcare">
         <Num label="Annual healthcare cost" value={p.annualHealthcareCost} onChange={set('annualHealthcareCost')} step={500} prefix="$"
           hint="Premiums + out-of-pocket in retirement, today's dollars." />
@@ -376,7 +391,9 @@ export default function ProfilePage() {
           </p>
         </details>
       </Group>
+      )}
 
+      {tab === 'assumptions' && (
       <Group title="Assumptions">
         <Pct label="Expected annual return" value={p.annualReturnRate} onChange={set('annualReturnRate')} max={15} />
         <Pct label="Inflation" value={p.inflationRate} onChange={set('inflationRate')} max={10} />
@@ -394,8 +411,9 @@ export default function ProfilePage() {
         </label>
         <Pct label="State income tax" value={p.stateTaxRate} onChange={set('stateTaxRate')} max={15} hint="Auto-filled from your state; edit to override." />
       </Group>
+      )}
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 border-t border-white/10 pt-6">
         <button onClick={onSave} disabled={saveState === 'saving'}
           className="rounded-md px-5 py-2 text-sm font-medium disabled:opacity-50"
           style={{ background: 'var(--foreground)', color: 'var(--background)' }}>

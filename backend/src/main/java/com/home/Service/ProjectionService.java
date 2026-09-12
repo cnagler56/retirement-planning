@@ -84,7 +84,7 @@ public class ProjectionService {
 					yearContribution += p.getMonthlyContribution();
 					contributionsTotal += p.getMonthlyContribution();
 				} else {
-					double ss = age >= claimAge ? ssMonthly : 0.0;
+					double ss = socialSecurity.householdAnnualAt(p, age) / 12.0;
 					double streamMonthly = streamIncomeAt(p, age) / 12.0;
 					double healthMonthly = (healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age)) / 12.0;
 						double withdrawal = spendMonthly + healthMonthly - ss - streamMonthly; // negative = surplus reinvested
@@ -109,7 +109,7 @@ public class ProjectionService {
 
 		double gapAtRetirement = spendingGoal + healthcareAt(p, retirementAge) + ltcAt(p, retirementAge)
 			+ loans.paymentAt(retirementAge)
-			- (retirementAge >= claimAge ? ssAnnual : 0)
+			- socialSecurity.householdAnnualAt(p, retirementAge)
 			- streamIncomeAt(p, retirementAge);
 
 		double ltcTotal = 0;
@@ -123,7 +123,7 @@ public class ProjectionService {
 			round(contributionsTotal),
 			round(spendingGoal),
 			ssMonthly > 0 ? claimAge : 0,
-			round(ssAnnual),
+			round(socialSecurity.householdAnnualAt(p, planThroughAge)),
 			round(Math.max(0, gapAtRetirement)),
 			moneyLastsToAge,
 			planThroughAge,

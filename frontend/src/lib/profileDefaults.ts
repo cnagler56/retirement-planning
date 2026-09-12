@@ -15,9 +15,10 @@ import {
   type SsBreakevenRequest,
 } from './api';
 
-/** Annual Social Security to assume in the tax models (benefit at FRA × 12). */
+/** Annual household Social Security for the tax models (both spouses' FRA × 12). */
 function annualSs(p: RetirementProfile): number {
-  return Math.round((p.ssMonthlyAtFra || 0) * 12);
+  const spouse = p.filingStatus === 'MARRIED_JOINT' ? (p.spouseSsMonthlyAtFra || 0) : 0;
+  return Math.round(((p.ssMonthlyAtFra || 0) + spouse) * 12);
 }
 
 export function ssDefaults(p: RetirementProfile | null): SsBreakevenRequest {

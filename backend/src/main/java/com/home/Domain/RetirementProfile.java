@@ -152,6 +152,14 @@ public class RetirementProfile {
 	@JsonProperty
 	private int ssClaimAge;
 
+	/** Spouse's benefit at their full retirement age (today's dollars, married-joint). */
+	@JsonProperty
+	private double spouseSsMonthlyAtFra;
+
+	/** Age the spouse claims Social Security (based on the spouse's own age). */
+	@JsonProperty
+	private int spouseSsClaimAge;
+
 	/** Age to run the plan through (life expectancy for planning). */
 	@JsonProperty
 	private int planThroughAge;
@@ -271,6 +279,19 @@ public class RetirementProfile {
 
 	public int getSsClaimAge() { return ssClaimAge; }
 	public void setSsClaimAge(int ssClaimAge) { this.ssClaimAge = ssClaimAge; }
+
+	public double getSpouseSsMonthlyAtFra() { return spouseSsMonthlyAtFra; }
+	public void setSpouseSsMonthlyAtFra(double v) { this.spouseSsMonthlyAtFra = v; }
+
+	public int getSpouseSsClaimAge() { return spouseSsClaimAge; }
+	public void setSpouseSsClaimAge(int v) { this.spouseSsClaimAge = v; }
+
+	/** Spouse's birth year, from their birth date (for FRA). */
+	@JsonIgnore
+	public int getSpouseBirthYear() {
+		return spouseBirthDate != null ? spouseBirthDate.getYear()
+			: java.time.Year.now().getValue() - getSpouseAge();
+	}
 
 	public int getPlanThroughAge() { return planThroughAge; }
 	public void setPlanThroughAge(int planThroughAge) { this.planThroughAge = planThroughAge; }

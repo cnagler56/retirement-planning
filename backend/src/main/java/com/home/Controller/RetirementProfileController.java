@@ -15,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.home.Domain.GoalSeekRequest;
 import com.home.Domain.GoalSeekResult;
 import com.home.Domain.LedgerResult;
+import com.home.Domain.Loan;
+import com.home.Domain.LoanAmortization;
 import com.home.Domain.MonteCarloRequest;
 import com.home.Domain.MonteCarloResult;
 import com.home.Domain.ProjectionResult;
@@ -84,6 +86,8 @@ public class RetirementProfileController {
 		profile.setDesiredAnnualIncome(body.getDesiredAnnualIncome());
 		profile.setSsMonthlyAtFra(body.getSsMonthlyAtFra());
 		profile.setSsClaimAge(body.getSsClaimAge());
+		profile.setSpouseSsMonthlyAtFra(body.getSpouseSsMonthlyAtFra());
+		profile.setSpouseSsClaimAge(body.getSpouseSsClaimAge());
 		profile.setPlanThroughAge(body.getPlanThroughAge());
 		profile.setFilingStatus(body.getFilingStatus());
 		profile.setTradBalance(body.getTradBalance());
@@ -135,6 +139,22 @@ public class RetirementProfileController {
 	@PostMapping("/api/projection/ledger")
 	public LedgerResult ledger(@RequestBody RetirementProfile body) {
 		return ledgerService.compute(body);
+	}
+
+	/**
+	 * Month-by-month amortization schedule + payoff summary for each loan on the
+	 * posted profile. No persistence, so the Loans page can recompute live as the
+	 * user edits payments, extras, or a refinance before saving.
+	 */
+	@PostMapping("/api/loans/amortization")
+	public java.util.List<LoanAmortization> loanAmortization(@RequestBody RetirementProfile body) {
+		int currentAge = Math.max(0, body.getCurrentAge());
+		int horizon = Math.max(body.getPlanThroughAge(), currentAge + 50); // long enough to show full payoff
+		java.util.List<LoanAmortization> out = new java.util.ArrayList<>();
+		if (body.getLoans() != null) {
+			for (Loan loan : body.getLoans()) out.add(com.home.tax.LoanSchedule.amortize(loan, currentAge, horizon));
+		}
+		return out;
 	}
 
 	/** Projection from the signed-in user's saved profile. */

@@ -79,7 +79,7 @@ public class MonteCarloService {
 				if (age <= retirementAge) {
 					balance += annualContribution;
 				} else {
-					double ss = age >= claimAge ? ssAnnual : 0;
+					double ss = socialSecurity.householdAnnualAt(p, age);
 					double streams = streamIncomeAt(p, age);
 					double health = healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age);
 					balance -= (spending + health - ss - streams); // surplus is reinvested
@@ -161,7 +161,7 @@ public class MonteCarloService {
 				if (age <= retirementAge) {
 					balance += annualContribution;
 				} else {
-					double ss = age >= claimAge ? ssAnnual : 0;
+					double ss = socialSecurity.householdAnnualAt(p, age);
 					balance -= (spending + healthcareAt(p, age) + ltcAt(p, age) - ss - streamIncomeAt(p, age));
 				}
 				if (balance <= 0 && age > retirementAge) { balance = 0; depleted = true; }

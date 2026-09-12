@@ -92,7 +92,7 @@ public class LedgerService {
 			int onMedicare = over65;
 
 			double startBalance = trad + roth + taxable;
-			double ss = age >= claimAge ? ssAnnual : 0;
+			double ss = socialSecurity.householdAnnualAt(p, age);
 			double pension = incomeAt(p, age, "pension");
 			double streams = streamIncomeAt(p, age);
 			double qualified = taxable * yieldRate;

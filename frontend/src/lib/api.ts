@@ -75,6 +75,47 @@ export interface Loan {
   annualRate: number;
   monthlyPayment: number;
   startAge: number;
+  /** Extra principal added to every monthly payment. */
+  extraMonthly: number;
+  /** One-time extra principal, encoded "age:amount;age:amount". */
+  lumpSums: string;
+  /** Payment grows this fraction each year (e.g. 0.03 = +3%/yr). */
+  paymentAnnualIncreasePct: number;
+  /** Age at which the rate changes; 0 = no refinance. */
+  refinanceAge: number;
+  /** New annual rate from the refinance age on. */
+  refinanceRate: number;
+  /** >0 re-amortizes the remaining balance over this many years. */
+  refinanceTermYears: number;
+}
+
+export interface LoanAmortizationRow {
+  monthIndex: number;
+  age: number;
+  payment: number;
+  interest: number;
+  principal: number;
+  extra: number;
+  endingBalance: number;
+}
+
+export interface LoanAmortizationSummary {
+  label: string;
+  startingBalance: number;
+  annualRate: number;
+  payoffAge: number | null;
+  payoffMonths: number;
+  totalInterest: number;
+  totalPaid: number;
+  baselineInterest: number;
+  baselineMonths: number;
+  interestSaved: number;
+  monthsSaved: number;
+}
+
+export interface LoanAmortization {
+  summary: LoanAmortizationSummary;
+  rows: LoanAmortizationRow[];
 }
 
 export interface LedgerRow {
@@ -154,6 +195,10 @@ export interface RetirementProfile {
   ssMonthlyAtFra: number;
   /** Age Social Security is claimed (62–70); 0 = none modeled. */
   ssClaimAge: number;
+  /** Spouse's benefit at their full retirement age (monthly). */
+  spouseSsMonthlyAtFra: number;
+  /** Age the spouse claims (their own age). */
+  spouseSsClaimAge: number;
   /** Age to run the plan through (life expectancy for planning). */
   planThroughAge: number;
   /** Shared household facts (captured at signup, reused by every calculator). */
@@ -326,6 +371,8 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   desiredAnnualIncome: 60000,
   ssMonthlyAtFra: 2000,
   ssClaimAge: 67,
+  spouseSsMonthlyAtFra: 0,
+  spouseSsClaimAge: 67,
   planThroughAge: 95,
   filingStatus: 'MARRIED_JOINT',
   spouseAge: ageFromBirthDate('1965-01-01'),
@@ -636,6 +683,10 @@ export const api = {
 
   /** Full year-by-year cash-flow ledger from retirement to the horizon. */
   ledger: (profile: RetirementProfile) => send<LedgerResult>('/api/projection/ledger', 'POST', profile),
+
+  /** Per-loan month-by-month amortization schedule + payoff summary. */
+  loanAmortization: (profile: RetirementProfile) =>
+    send<LoanAmortization[]>('/api/loans/amortization', 'POST', profile),
 
   /** Social Security claiming breakeven — pure calc, no login required. */
   ssBreakeven: (r: SsBreakevenRequest) =>
