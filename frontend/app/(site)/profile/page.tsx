@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ageFromBirthDate, api, DEFAULT_PROFILE, type Asset, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
+import { ageFromBirthDate, api, DEFAULT_PROFILE, type Asset, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type OneTimeEvent, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
@@ -121,6 +121,19 @@ export default function ProfilePage() {
     setP((prev) => ({ ...prev, expenses: prev.expenses.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
   const removeExpense = (i: number) =>
     setP((prev) => ({ ...prev, expenses: prev.expenses.filter((_, idx) => idx !== i) }));
+
+  const addEvent = () =>
+    setP((prev) => ({
+      ...prev,
+      oneTimeEvents: [
+        ...(prev.oneTimeEvents || []),
+        { label: '', amount: 0, age: prev.retirementAge, inflow: false },
+      ],
+    }));
+  const updateEvent = (i: number, patch: Partial<OneTimeEvent>) =>
+    setP((prev) => ({ ...prev, oneTimeEvents: (prev.oneTimeEvents || []).map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
+  const removeEvent = (i: number) =>
+    setP((prev) => ({ ...prev, oneTimeEvents: (prev.oneTimeEvents || []).filter((_, idx) => idx !== i) }));
 
   const addAsset = () =>
     setP((prev) => ({ ...prev, assets: [...(prev.assets || []), { label: '', type: 'REAL_ESTATE', value: 0 }] }));
@@ -303,8 +316,16 @@ export default function ProfilePage() {
             <Num label="Spouse's Social Security at FRA (monthly)" value={p.spouseSsMonthlyAtFra} onChange={set('spouseSsMonthlyAtFra')} min={0} step={50} prefix="$"
               hint="Their own benefit. 0 if none / not applicable." />
             <Num label="Spouse plans to claim at age" value={p.spouseSsClaimAge} onChange={set('spouseSsClaimAge')} min={62} max={70} />
+            <Num label="Model a first death at your age" value={p.firstDeathAge ?? 0} onChange={set('firstDeathAge')} min={0} max={110}
+              hint="Optional. From this age the survivor files single (higher tax) and keeps only the larger Social Security benefit. 0 = don't model." />
+            {(p.firstDeathAge ?? 0) > 0 && (
+              <Pct label="Survivor's spending vs. the couple's" value={p.survivorSpendingFactor ?? 1} onChange={set('survivorSpendingFactor')} max={100}
+                hint="What the survivor needs relative to your joint budget — often ~75–80%. 100% = no change." />
+            )}
           </>
         )}
+        <Pct label="Social Security COLA" value={p.ssColaRate ?? p.inflationRate} onChange={set('ssColaRate')} max={10}
+          hint="Annual cost-of-living raise. Match it to inflation to keep full purchasing power; set it lower to model the benefit slowly losing ground in today's dollars." />
       </Group>
 
       <section>
@@ -403,6 +424,39 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+
+        <div className="mt-8 mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-40">One-time events</h2>
+          <button type="button" onClick={addEvent} className="text-sm underline underline-offset-4">+ Add event</button>
+        </div>
+        <p className="mb-3 text-xs opacity-55">
+          A single-year cash flow at a specific age — an inheritance or home sale (money in), or a new car,
+          a wedding, or a big medical bill (money out). Enter the amount in today&apos;s dollars; it&apos;s
+          treated as after-tax cash.
+        </p>
+        {(p.oneTimeEvents || []).length === 0 && (
+          <p className="text-sm opacity-50">No one-time events yet.</p>
+        )}
+        <div className="space-y-3">
+          {(p.oneTimeEvents || []).map((e, i) => (
+            <div key={i} className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Label" value={e.label} placeholder="e.g. Inheritance"
+                  onChange={(v) => updateEvent(i, { label: v })} />
+                <Num label="Amount" value={e.amount} onChange={(v) => updateEvent(i, { amount: v })} min={0} step={1000} prefix="$" />
+                <SelectField label="Direction" value={e.inflow ? 'IN' : 'OUT'}
+                  onChange={(v) => updateEvent(i, { inflow: v === 'IN' })}
+                  options={[['OUT', 'Money out (purchase, bill)'], ['IN', 'Money in (inheritance, sale)']]} />
+                <Num label="At your age" value={e.age} onChange={(v) => updateEvent(i, { age: v })} min={0} max={110} />
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button type="button" onClick={() => removeEvent(i)} className="text-sm text-red-500 underline underline-offset-4">
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
       )}
 
@@ -492,6 +546,33 @@ export default function ProfilePage() {
           </select>
         </label>
         <Pct label="State income tax" value={p.stateTaxRate} onChange={set('stateTaxRate')} max={15} hint="Auto-filled from your state; edit to override." />
+        <div>
+          <SelectField label="Withdrawal strategy" value={p.withdrawalStrategy || 'CONVENTIONAL'}
+            onChange={set('withdrawalStrategy')}
+            options={[
+              ['CONVENTIONAL', 'Conventional (taxable → pre-tax → Roth)'],
+              ['PROPORTIONAL', 'Proportional (pro-rata across accounts)'],
+              ['TAX_EFFICIENT', 'Tax-efficient (fill the 12% bracket from pre-tax first)'],
+            ]} />
+          <span className="mt-1 block text-xs opacity-45">
+            How the year-by-year ledger sources spending across your accounts. Tax-efficient draws pre-tax
+            down earlier to level income and shrink future RMDs.
+          </span>
+        </div>
+        {(p.withdrawalStrategy || 'CONVENTIONAL') === 'TAX_EFFICIENT' && (
+          <div>
+            <SelectField label="Fill pre-tax up to bracket" value={String(p.withdrawalBracketPct ?? 12)}
+              onChange={(v) => set('withdrawalBracketPct')(Number(v))}
+              options={[
+                ['12', '12% bracket (more conservative)'],
+                ['22', '22% bracket (drains pre-tax faster)'],
+              ]} />
+            <span className="mt-1 block text-xs opacity-45">
+              A higher target pulls more from pre-tax each year — often better for a large IRA facing big RMDs,
+              at the cost of more tax now.
+            </span>
+          </div>
+        )}
       </Group>
       )}
 

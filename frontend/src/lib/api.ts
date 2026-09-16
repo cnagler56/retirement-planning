@@ -99,6 +99,16 @@ export interface Loan {
   refinanceTermYears: number;
 }
 
+export interface OneTimeEvent {
+  label: string;
+  /** Today's dollars, always a positive number. */
+  amount: number;
+  /** The primary's age in the year it happens. */
+  age: number;
+  /** true = money in (inheritance, sale); false = money out (purchase). */
+  inflow: boolean;
+}
+
 export interface LoanAmortizationRow {
   monthIndex: number;
   age: number;
@@ -144,6 +154,7 @@ export interface LedgerRow {
   otherIncome: number;
   rmd: number;
   withdrawal: number;
+  oneTime: number;
   livingExpenses: number;
   healthcare: number;
   loanPayment: number;
@@ -217,6 +228,18 @@ export interface RetirementProfile {
   spouseSsMonthlyAtFra: number;
   /** Age the spouse claims (their own age). */
   spouseSsClaimAge: number;
+  /** Your age at a modeled first death (widow's penalty); 0/undefined = not modeled. */
+  firstDeathAge?: number;
+  /** Survivor's spending as a fraction of the couple's goal (e.g. 0.8); undefined = 1.0. */
+  survivorSpendingFactor?: number;
+  /** Annual Social Security COLA. Defaults to the inflation rate (benefit holds real value);
+   *  set below inflation to model the benefit eroding in today's dollars. */
+  ssColaRate?: number;
+  /** How the ledger sources spending across buckets: CONVENTIONAL (default),
+   *  PROPORTIONAL, or TAX_EFFICIENT. */
+  withdrawalStrategy?: string;
+  /** For TAX_EFFICIENT: top ordinary bracket (percent, e.g. 12 or 22) to fill pre-tax up to. */
+  withdrawalBracketPct?: number;
   /** Age to run the plan through (life expectancy for planning). */
   planThroughAge: number;
   /** Shared household facts (captured at signup, reused by every calculator). */
@@ -240,6 +263,7 @@ export interface RetirementProfile {
   incomeStreams: IncomeStream[];
   expenses: ExpenseItem[];
   loans: Loan[];
+  oneTimeEvents: OneTimeEvent[];
   assets: Asset[];
 }
 
@@ -410,6 +434,7 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   incomeStreams: [],
   expenses: [],
   loans: [],
+  oneTimeEvents: [],
   assets: [],
 };
 

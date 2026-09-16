@@ -122,6 +122,16 @@ public class RetirementProfile {
 	@JsonProperty
 	private double stateTaxRate;
 
+	/** How the ledger sources spending across buckets: CONVENTIONAL (default),
+	 *  PROPORTIONAL, or TAX_EFFICIENT. Nullable — null means CONVENTIONAL. */
+	@JsonProperty
+	private String withdrawalStrategy;
+
+	/** For TAX_EFFICIENT: the top ordinary-income bracket (as a percent, e.g. 12 or 22)
+	 *  to fill pre-tax withdrawals up to. Nullable — null means 12. */
+	@JsonProperty
+	private Integer withdrawalBracketPct;
+
 	/** Additional income streams — pension, rental, annuity, inherited-land rent, etc. */
 	@ElementCollection(fetch = FetchType.EAGER)
 	@CollectionTable(name = "profile_income_streams", joinColumns = @JoinColumn(name = "profile_id"))
@@ -139,6 +149,12 @@ public class RetirementProfile {
 	@CollectionTable(name = "profile_loans", joinColumns = @JoinColumn(name = "profile_id"))
 	@JsonProperty
 	private List<Loan> loans = new ArrayList<>();
+
+	/** One-time cash flows at a specific age — inheritance, home sale, new car, etc. */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "profile_one_time_events", joinColumns = @JoinColumn(name = "profile_id"))
+	@JsonProperty
+	private List<OneTimeEvent> oneTimeEvents = new ArrayList<>();
 
 	/** Net-worth assets held outside the draw-down buckets (real estate, cash, …). */
 	@ElementCollection(fetch = FetchType.EAGER)
@@ -165,6 +181,25 @@ public class RetirementProfile {
 	/** Age the spouse claims Social Security (based on the spouse's own age). */
 	@JsonProperty
 	private int spouseSsClaimAge;
+
+	/** Primary's age at the first death (widow's-penalty modeling): filing switches to
+	 *  single, household SS drops to the survivor's larger benefit. Nullable/0 = not modeled. */
+	@JsonProperty
+	private Integer firstDeathAge;
+
+	/** Fraction of the all-in spending goal the survivor needs after the first death
+	 *  (e.g. 0.8 = 80%). Nullable — null/0 means 1.0 (no change). */
+	@JsonProperty
+	private Double survivorSpendingFactor;
+
+	/**
+	 * Annual Social Security COLA. In this today's-dollars model only the gap
+	 * against inflation matters: a COLA equal to inflation holds the benefit's
+	 * real value flat, a COLA below inflation erodes it. Nullable — unset means
+	 * "keeps full pace with inflation" (see {@link #getSsColaRate()}).
+	 */
+	@JsonProperty
+	private Double ssColaRate;
 
 	/** Age to run the plan through (life expectancy for planning). */
 	@JsonProperty
@@ -265,6 +300,13 @@ public class RetirementProfile {
 	public double getStateTaxRate() { return stateTaxRate; }
 	public void setStateTaxRate(double stateTaxRate) { this.stateTaxRate = stateTaxRate; }
 
+	public String getWithdrawalStrategy() { return withdrawalStrategy; }
+	public void setWithdrawalStrategy(String withdrawalStrategy) { this.withdrawalStrategy = withdrawalStrategy; }
+
+	/** Target bracket percent for the tax-efficient strategy; defaults to 12 when unset. */
+	public int getWithdrawalBracketPct() { return withdrawalBracketPct != null ? withdrawalBracketPct : 12; }
+	public void setWithdrawalBracketPct(Integer withdrawalBracketPct) { this.withdrawalBracketPct = withdrawalBracketPct; }
+
 	public List<IncomeStream> getIncomeStreams() { return incomeStreams; }
 	public void setIncomeStreams(List<IncomeStream> incomeStreams) {
 		this.incomeStreams = incomeStreams != null ? incomeStreams : new ArrayList<>();
@@ -278,6 +320,11 @@ public class RetirementProfile {
 	public List<Loan> getLoans() { return loans; }
 	public void setLoans(List<Loan> loans) {
 		this.loans = loans != null ? loans : new ArrayList<>();
+	}
+
+	public List<OneTimeEvent> getOneTimeEvents() { return oneTimeEvents; }
+	public void setOneTimeEvents(List<OneTimeEvent> oneTimeEvents) {
+		this.oneTimeEvents = oneTimeEvents != null ? oneTimeEvents : new ArrayList<>();
 	}
 
 	public List<Asset> getAssets() { return assets; }
@@ -296,6 +343,20 @@ public class RetirementProfile {
 
 	public int getSpouseSsClaimAge() { return spouseSsClaimAge; }
 	public void setSpouseSsClaimAge(int v) { this.spouseSsClaimAge = v; }
+
+	/** Primary's age at first death; 0 when unset (not modeled). */
+	public int getFirstDeathAge() { return firstDeathAge != null ? firstDeathAge : 0; }
+	public void setFirstDeathAge(Integer v) { this.firstDeathAge = v; }
+
+	/** Survivor's spending as a fraction of the couple's goal; defaults to 1.0 (no change). */
+	public double getSurvivorSpendingFactor() {
+		return survivorSpendingFactor != null && survivorSpendingFactor > 0 ? survivorSpendingFactor : 1.0;
+	}
+	public void setSurvivorSpendingFactor(Double v) { this.survivorSpendingFactor = v; }
+
+	/** COLA rate, defaulting to the inflation rate when unset (benefit holds its real value). */
+	public double getSsColaRate() { return ssColaRate != null ? ssColaRate : inflationRate; }
+	public void setSsColaRate(Double v) { this.ssColaRate = v; }
 
 	/** Spouse's birth year, from their birth date (for FRA). */
 	@JsonIgnore

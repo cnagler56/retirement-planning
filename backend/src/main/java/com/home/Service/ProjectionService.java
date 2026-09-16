@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import com.home.Domain.ProjectionResult;
 import com.home.Domain.ProjectionResult.ProjectionPoint;
 import com.home.Domain.RetirementProfile;
-import com.home.tax.LoanSchedule;
 
 /**
  * Turns a {@link RetirementProfile} into a full-lifetime retirement projection,
@@ -36,9 +35,11 @@ public class ProjectionService {
 	private static final int MAX_CLAIM = 70;
 
 	private final SocialSecurityService socialSecurity;
+	private final RetirementCashFlow cashFlow;
 
-	public ProjectionService(SocialSecurityService socialSecurity) {
+	public ProjectionService(SocialSecurityService socialSecurity, RetirementCashFlow cashFlow) {
 		this.socialSecurity = socialSecurity;
+		this.cashFlow = cashFlow;
 	}
 
 	public ProjectionResult compute(RetirementProfile p) {
@@ -51,7 +52,6 @@ public class ProjectionService {
 		double realMonthly = Math.pow(1 + realAnnual, 1.0 / 12.0) - 1;
 
 		double spendingGoal = p.getDesiredAnnualIncome();
-		double spendMonthly = spendingGoal / 12.0;
 
 		// Social Security, in today's dollars, from the claim age onward.
 		int claimAge = p.getSsClaimAge();
@@ -59,9 +59,7 @@ public class ProjectionService {
 		if (p.getSsMonthlyAtFra() > 0 && claimAge >= MIN_CLAIM && claimAge <= MAX_CLAIM) {
 			ssMonthly = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claimAge);
 		}
-		double ssAnnual = ssMonthly * 12.0;
-
-		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThroughAge, p.getInflationRate());
+		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThroughAge);
 
 		double balance = p.getCurrentSavings();
 		double contributionsTotal = 0.0;
@@ -77,6 +75,11 @@ public class ProjectionService {
 			double yearSs = 0;
 			double yearWithdrawal = 0;
 
+			// One cash-flow read per retirement year (today's dollars); the net need is
+			// spread evenly across the 12 months so the balance still compounds monthly.
+			RetirementCashFlow.AnnualCashFlow cf = age >= retirementAge ? cash.at(age) : null;
+			double withdrawalMonthly = cf != null ? cf.netNeed() / 12.0 : 0; // negative = surplus reinvested
+
 			for (int month = 0; month < 12; month++) {
 				balance *= (1 + realMonthly);
 				if (age < retirementAge) {
@@ -84,13 +87,9 @@ public class ProjectionService {
 					yearContribution += p.getMonthlyContribution();
 					contributionsTotal += p.getMonthlyContribution();
 				} else {
-					double ss = socialSecurity.householdAnnualAt(p, age) / 12.0;
-					double streamMonthly = streamIncomeAt(p, age) / 12.0;
-					double healthMonthly = (healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age)) / 12.0;
-						double withdrawal = spendMonthly + healthMonthly - ss - streamMonthly; // negative = surplus reinvested
-					balance -= withdrawal;
-					yearSs += ss;
-					yearWithdrawal += Math.max(0, withdrawal);
+					balance -= withdrawalMonthly;
+					yearSs += cf.socialSecurity() / 12.0;
+					yearWithdrawal += Math.max(0, withdrawalMonthly);
 					if (balance <= 0) {
 						balance = 0;
 						if (moneyLastsToAge == null) moneyLastsToAge = age + 1;
@@ -107,13 +106,11 @@ public class ProjectionService {
 
 		if (currentAge >= retirementAge) nestEgg = p.getCurrentSavings();
 
-		double gapAtRetirement = spendingGoal + healthcareAt(p, retirementAge) + ltcAt(p, retirementAge)
-			+ loans.paymentAt(retirementAge)
-			- socialSecurity.householdAnnualAt(p, retirementAge)
-			- streamIncomeAt(p, retirementAge);
+		RetirementCashFlow.AnnualCashFlow atRetirement = cash.at(retirementAge);
+		double gapAtRetirement = atRetirement.netNeed();
 
 		double ltcTotal = 0;
-		for (int age = retirementAge; age < planThroughAge; age++) ltcTotal += ltcAt(p, age);
+		for (int age = retirementAge; age < planThroughAge; age++) ltcTotal += cash.at(age).ltc();
 
 		return new ProjectionResult(
 			points,
@@ -130,43 +127,9 @@ public class ProjectionService {
 			round(balance),
 			moneyLastsToAge == null,
 			realAnnual,
-			round(healthcareAt(p, retirementAge)),
+			round(atRetirement.healthcare()),
 			round(ltcTotal)
 		);
-	}
-
-	/** Today's-dollars income from all streams active at the given age. A spouse-owned
-	 *  stream's ages are the spouse's, translated onto the primary timeline. */
-	private double streamIncomeAt(RetirementProfile p, int age) {
-		if (p.getIncomeStreams() == null) return 0;
-		int currentAge = p.getCurrentAge();
-		int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
-		double total = 0;
-		for (var s : p.getIncomeStreams()) {
-			int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
-			total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
-		}
-		return total;
-	}
-
-	/**
-	 * Today's-dollars healthcare cost at a given retirement-year age. Grows in real
-	 * terms because healthcare inflation typically outpaces general inflation.
-	 */
-	private double healthcareAt(RetirementProfile p, int age) {
-		if (age < p.getRetirementAge() || p.getAnnualHealthcareCost() <= 0) return 0;
-		double healthInfl = p.getHealthcareInflationRate();
-		double realGrowth = (1 + healthInfl) / (1 + p.getInflationRate());
-		return p.getAnnualHealthcareCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
-	}
-
-	/** Today's-dollars long-term-care cost during the LTC window (0 otherwise). */
-	private double ltcAt(RetirementProfile p, int age) {
-		if (!p.isLtcEnabled() || p.getLtcAnnualCost() <= 0) return 0;
-		int start = p.getLtcStartAge();
-		if (age < start || age >= start + Math.max(1, p.getLtcYears())) return 0;
-		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
-		return p.getLtcAnnualCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
 	}
 
 	/** Round to whole currency units — projections don't need sub-dollar noise. */

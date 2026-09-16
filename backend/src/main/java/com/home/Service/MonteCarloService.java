@@ -11,7 +11,6 @@ import com.home.Domain.MonteCarloRequest;
 import com.home.Domain.MonteCarloResult;
 import com.home.Domain.MonteCarloResult.Band;
 import com.home.Domain.RetirementProfile;
-import com.home.tax.LoanSchedule;
 
 /**
  * Monte Carlo simulation of the retirement drawdown. Instead of one fixed return,
@@ -29,10 +28,20 @@ public class MonteCarloService {
 	private static final int MAX_TRIALS = 5000;
 	private static final long SEED = 12345L;
 
-	private final SocialSecurityService socialSecurity;
+	private final RetirementCashFlow cashFlow;
 
-	public MonteCarloService(SocialSecurityService socialSecurity) {
-		this.socialSecurity = socialSecurity;
+	public MonteCarloService(RetirementCashFlow cashFlow) {
+		this.cashFlow = cashFlow;
+	}
+
+	/** Net portfolio need by age (today's dollars), deterministic across trials so
+	 *  it's computed once per run. Index is age; entries below the first drawdown
+	 *  year are 0 and unused. */
+	private double[] netNeedByAge(RetirementProfile p, int retirementAge, int planThrough) {
+		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThrough);
+		double[] need = new double[planThrough + 1];
+		for (int age = retirementAge + 1; age <= planThrough; age++) need[age] = cash.at(age).netNeed();
+		return need;
 	}
 
 	public MonteCarloResult run(MonteCarloRequest req) {
@@ -48,15 +57,9 @@ public class MonteCarloService {
 		double meanNominal = p.getAnnualReturnRate();
 		double inflation = p.getInflationRate();
 		double annualContribution = p.getMonthlyContribution() * 12;
-		double spending = p.getDesiredAnnualIncome();
 
-		// Social Security (today's dollars) from the claim age onward.
-		double ssAnnual = 0;
-		if (p.getSsMonthlyAtFra() > 0 && p.getSsClaimAge() >= 62) {
-			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
-		}
-		int claimAge = p.getSsClaimAge();
-		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
+		// Cash-flow needs are deterministic across trials, so compute them once.
+		double[] netNeed = netNeedByAge(p, retirementAge, planThrough);
 
 		Random random = new Random(SEED);
 		int successes = 0;
@@ -79,10 +82,7 @@ public class MonteCarloService {
 				if (age <= retirementAge) {
 					balance += annualContribution;
 				} else {
-					double ss = socialSecurity.householdAnnualAt(p, age);
-					double streams = streamIncomeAt(p, age);
-					double health = healthcareAt(p, age) + ltcAt(p, age) + loans.paymentAt(age);
-					balance -= (spending + health - ss - streams); // surplus is reinvested
+					balance -= netNeed[age]; // spending − guaranteed income; negative surplus reinvested
 				}
 
 				if (balance <= 0 && age > retirementAge) {
@@ -140,14 +140,8 @@ public class MonteCarloService {
 		double meanNominal = p.getAnnualReturnRate();
 		double inflation = p.getInflationRate();
 		double annualContribution = p.getMonthlyContribution() * 12;
-		double spending = p.getDesiredAnnualIncome();
 
-		double ssAnnual = 0;
-		if (p.getSsMonthlyAtFra() > 0 && p.getSsClaimAge() >= 62) {
-			ssAnnual = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), p.getSsClaimAge()) * 12;
-		}
-		int claimAge = p.getSsClaimAge();
-		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
+		double[] netNeed = netNeedByAge(p, retirementAge, planThrough);
 
 		Random random = new Random(SEED);
 		int successes = 0;
@@ -161,44 +155,13 @@ public class MonteCarloService {
 				if (age <= retirementAge) {
 					balance += annualContribution;
 				} else {
-					double ss = socialSecurity.householdAnnualAt(p, age);
-					balance -= (spending + healthcareAt(p, age) + ltcAt(p, age) - ss - streamIncomeAt(p, age));
+					balance -= netNeed[age];
 				}
 				if (balance <= 0 && age > retirementAge) { balance = 0; depleted = true; }
 			}
 			if (!depleted) successes++;
 		}
 		return (double) successes / trials;
-	}
-
-	/** Today's-dollars income from all streams active at the given age. A spouse-owned
-	 *  stream's ages are the spouse's, translated onto the primary timeline. */
-	private double streamIncomeAt(RetirementProfile p, int age) {
-		if (p.getIncomeStreams() == null) return 0;
-		int currentAge = p.getCurrentAge();
-		int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
-		double total = 0;
-		for (var s : p.getIncomeStreams()) {
-			int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
-			total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
-		}
-		return total;
-	}
-
-	/** Today's-dollars healthcare cost at a retirement-year age (grows in real terms). */
-	private double healthcareAt(RetirementProfile p, int age) {
-		if (age < p.getRetirementAge() || p.getAnnualHealthcareCost() <= 0) return 0;
-		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
-		return p.getAnnualHealthcareCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
-	}
-
-	/** Today's-dollars long-term-care cost during the LTC window (0 otherwise). */
-	private double ltcAt(RetirementProfile p, int age) {
-		if (!p.isLtcEnabled() || p.getLtcAnnualCost() <= 0) return 0;
-		int start = p.getLtcStartAge();
-		if (age < start || age >= start + Math.max(1, p.getLtcYears())) return 0;
-		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
-		return p.getLtcAnnualCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
 	}
 
 	/** Linear-interpolated percentile of a pre-sorted array. */

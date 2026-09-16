@@ -46,6 +46,7 @@ public record LedgerResult(
 			double otherIncome,
 			double rmd,
 			double withdrawal,
+			double oneTime,
 			double livingExpenses,
 			double healthcare,
 			double loanPayment,

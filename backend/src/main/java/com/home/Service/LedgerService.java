@@ -5,16 +5,16 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.home.Domain.ExpenseItem;
 import com.home.Domain.LedgerResult;
 import com.home.Domain.LedgerResult.LedgerRow;
 import com.home.Domain.RetirementProfile;
 import com.home.tax.FederalTaxService;
 import com.home.tax.FederalTaxService.FederalTax;
 import com.home.tax.IrmaaTable;
-import com.home.tax.LoanSchedule;
 import com.home.tax.RmdTable;
 import com.home.tax.TaxConstants.Filing;
+import com.home.tax.WithdrawalSequencer;
+import com.home.tax.WithdrawalStrategy;
 
 /**
  * A full retirement cash-flow ledger, in today's (inflation-adjusted) dollars.
@@ -33,17 +33,18 @@ import com.home.tax.TaxConstants.Filing;
  *
  * Deterministic (expected return, not Monte Carlo). Simplifications: contributions
  * go to the pre-tax bucket; taxable-account withdrawals are treated as return of
- * capital (only its dividend yield is taxed); Social Security holds its real value.
+ * capital (only its dividend yield is taxed); Social Security holds its real value
+ * unless its COLA is set below inflation, in which case the benefit erodes.
  */
 @Service
 public class LedgerService {
 
 	private final FederalTaxService federal;
-	private final SocialSecurityService socialSecurity;
+	private final RetirementCashFlow cashFlow;
 
-	public LedgerService(FederalTaxService federal, SocialSecurityService socialSecurity) {
+	public LedgerService(FederalTaxService federal, RetirementCashFlow cashFlow) {
 		this.federal = federal;
-		this.socialSecurity = socialSecurity;
+		this.cashFlow = cashFlow;
 	}
 
 	public LedgerResult compute(RetirementProfile p) {
@@ -61,13 +62,8 @@ public class LedgerService {
 		boolean married = filing == Filing.MARRIED_JOINT;
 		int spouseAgeOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
 		double stateRate = p.getStateTaxRate();
-
-		// Social Security (today's dollars) from the claim age onward.
-		double ssAnnual = 0;
-		int claimAge = p.getSsClaimAge();
-		if (p.getSsMonthlyAtFra() > 0 && claimAge >= 62) {
-			ssAnnual = socialSecurity.monthlyBenefit(birthYear, p.getSsMonthlyAtFra(), claimAge) * 12;
-		}
+		WithdrawalStrategy strategy = WithdrawalStrategy.from(p.getWithdrawalStrategy());
+		double taxEfficientTargetRate = p.getWithdrawalBracketPct() / 100.0; // e.g. 12 → 0.12
 
 		// Grow current balances (plus contributions to pre-tax) up to retirement.
 		double trad = Math.max(0, p.getTradBalance());
@@ -80,7 +76,7 @@ public class LedgerService {
 			taxable *= (1 + realReturn);
 		}
 
-		LoanSchedule.Schedule loans = LoanSchedule.compute(p.getLoans(), currentAge, planThrough, inflation);
+		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThrough);
 
 		List<LedgerRow> rows = new ArrayList<>();
 		Integer moneyLastsToAge = null;
@@ -88,20 +84,30 @@ public class LedgerService {
 		for (int age = retirementAge; age <= planThrough; age++) {
 			int t = age - currentAge;
 			double realScale = Math.pow(1 + inflation, -t);
-			int over65 = (age >= 65 ? 1 : 0) + (married && (age + spouseAgeOffset) >= 65 ? 1 : 0);
+			// After the first death the survivor files single with compressed brackets and
+			// halved IRMAA thresholds — the widow's penalty — and one fewer person on Medicare.
+			boolean widowed = SocialSecurityService.isWidowed(p, age);
+			Filing yearFiling = widowed ? Filing.SINGLE : filing;
+			int over65 = widowed
+				? (age >= 65 ? 1 : 0)
+				: (age >= 65 ? 1 : 0) + (married && (age + spouseAgeOffset) >= 65 ? 1 : 0);
 			int onMedicare = over65;
 
 			double startBalance = trad + roth + taxable;
-			double ss = socialSecurity.householdAnnualAt(p, age);
-			double pension = incomeAt(p, age, "pension");
-			double streams = streamIncomeAt(p, age);
-			double taxableStreams = streamIncomeAt(p, age, true);
+			RetirementCashFlow.AnnualCashFlow cf = cash.at(age);
+			double ss = cf.socialSecurity();
+			double pension = cf.pension();
+			double streams = cf.streams();
+			double taxableStreams = cf.taxableStreams();
 			double qualified = taxable * yieldRate;
-			double living = livingExpensesAt(p, age);
-			double health = healthcareAt(p, age) + ltcAt(p, age);
-			double loanPayment = loans.paymentAt(age);
-			double loanBalance = loans.balanceAt(age);
-			double expenses = living + health + loanPayment;
+			double loanPayment = cf.loanPayment();
+			double loanBalance = cf.loanBalance();
+			// The all-in budget breaks into the "living" column (discretionary + itemized),
+			// healthcare, and debt; only the LTC shock adds on top.
+			double living = cf.living();
+			double health = cf.healthcare() + cf.ltc();
+			double expenses = cf.allInSpending();
+			double oneTime = cf.oneTimeNet(); // + inflow reduces the need, − outflow adds to it
 
 			double rmd = RmdTable.required(age, birthYear, trad);
 
@@ -110,19 +116,26 @@ public class LedgerService {
 			double wTaxable = 0, wTradExtra = 0, wRoth = 0;
 			boolean shortfall = false;
 			for (int iter = 0; iter < 6; iter++) {
-				double need = expenses + tax - ss - pension - streams; // total portfolio cash needed
+				double need = expenses + tax - ss - pension - streams - oneTime; // total portfolio cash needed
 				double remaining = Math.max(0, need - rmd);              // beyond the forced RMD
-				wTaxable = Math.min(taxable, remaining); remaining -= wTaxable;
-				wTradExtra = Math.min(Math.max(0, trad - rmd), remaining); remaining -= wTradExtra;
-				wRoth = Math.min(roth, remaining); remaining -= wRoth;
-				shortfall = remaining > 1;
+				// Tax-efficient fills pre-tax up to the target bracket; others ignore fillRoom.
+				double fillRoom = strategy == WithdrawalStrategy.TAX_EFFICIENT
+					? WithdrawalSequencer.bracketFillRoom(yearFiling, over65, pension + rmd + taxableStreams,
+						taxEfficientTargetRate, realScale)
+					: 0;
+				WithdrawalSequencer.Draw draw = WithdrawalSequencer.source(
+					strategy, remaining, taxable, Math.max(0, trad - rmd), roth, fillRoom);
+				wTaxable = draw.fromTaxable();
+				wTradExtra = draw.fromTradExtra();
+				wRoth = draw.fromRoth();
+				shortfall = draw.shortfall();
 
 				double ordinary = pension + rmd + wTradExtra + taxableStreams;
-				FederalTax f = federal.compute(filing, over65, ordinary, ss, qualified, realScale);
+				FederalTax f = federal.compute(yearFiling, over65, ordinary, ss, qualified, realScale);
 				taxableSs = f.taxableSocialSecurity();
 				fedTax = f.totalTax();
 				stateTax = stateRate * Math.max(0, f.taxableIncome() - f.taxableSocialSecurity());
-				irmaa = IrmaaTable.surcharge(filing, f.agi(), onMedicare, realScale);
+				irmaa = IrmaaTable.surcharge(yearFiling, f.agi(), onMedicare, realScale);
 				double newTax = fedTax + stateTax + irmaa;
 				if (Math.abs(newTax - tax) < 1) { tax = newTax; break; }
 				tax = newTax;
@@ -133,7 +146,7 @@ public class LedgerService {
 			taxable = Math.max(0, taxable - wTaxable);
 			roth = Math.max(0, roth - wRoth);
 			// RMD not needed for spending is parked in taxable.
-			double rmdSurplus = Math.max(0, (rmd + wTaxable + wTradExtra + wRoth) - (expenses + tax - ss - pension - streams));
+			double rmdSurplus = Math.max(0, (rmd + wTaxable + wTradExtra + wRoth) - (expenses + tax - ss - pension - streams - oneTime));
 			taxable += Math.max(0, rmdSurplus);
 
 			trad *= (1 + realReturn);
@@ -145,60 +158,13 @@ public class LedgerService {
 			double endTotal = trad + roth + taxable;
 			rows.add(new LedgerRow(
 				age, round(startBalance), round(ss), round(pension), round(streams),
-				round(rmd), round(wTaxable + wTradExtra + wRoth),
+				round(rmd), round(wTaxable + wTradExtra + wRoth), round(oneTime),
 				round(living), round(health), round(loanPayment), round(loanBalance),
 				round(fedTax), round(stateTax), round(irmaa), round(taxableSs),
 				round(trad), round(roth), round(taxable), round(endTotal), shortfall));
 		}
 
 		return new LedgerResult(rows, moneyLastsToAge, round4(realReturn), rmdStart);
-	}
-
-	/** Living expenses at an age: itemized expenses if any, else the base spending goal. */
-	private double livingExpensesAt(RetirementProfile p, int age) {
-		List<ExpenseItem> items = p.getExpenses();
-		if (items == null || items.isEmpty()) return p.getDesiredAnnualIncome();
-		double total = 0;
-		for (ExpenseItem e : items) total += e.realAmountAt(age, p.getCurrentAge(), p.getInflationRate());
-		return total;
-	}
-
-	private double streamIncomeAt(RetirementProfile p, int age) {
-		return streamIncomeAt(p, age, false);
-	}
-
-	/** Stream income at a primary age; {@code taxableOnly} restricts to taxable streams.
-	 *  A spouse-owned stream's ages are the spouse's, translated onto the primary timeline. */
-	private double streamIncomeAt(RetirementProfile p, int age, boolean taxableOnly) {
-		if (p.getIncomeStreams() == null) return 0;
-		int currentAge = p.getCurrentAge();
-		int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
-		double total = 0;
-		for (var s : p.getIncomeStreams()) {
-			if (taxableOnly && !s.isTaxable()) continue;
-			int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
-			total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
-		}
-		return total;
-	}
-
-	private double incomeAt(RetirementProfile p, int age, String kind) {
-		// Pension flows from retirement onward (today's dollars).
-		return age >= p.getRetirementAge() ? p.getAnnualPension() : 0;
-	}
-
-	private double healthcareAt(RetirementProfile p, int age) {
-		if (age < p.getRetirementAge() || p.getAnnualHealthcareCost() <= 0) return 0;
-		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
-		return p.getAnnualHealthcareCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
-	}
-
-	private double ltcAt(RetirementProfile p, int age) {
-		if (!p.isLtcEnabled() || p.getLtcAnnualCost() <= 0) return 0;
-		int start = p.getLtcStartAge();
-		if (age < start || age >= start + Math.max(1, p.getLtcYears())) return 0;
-		double realGrowth = (1 + p.getHealthcareInflationRate()) / (1 + p.getInflationRate());
-		return p.getLtcAnnualCost() * Math.pow(realGrowth, Math.max(0, age - p.getCurrentAge()));
 	}
 
 	private static double round(double v) { return Math.round(v); }

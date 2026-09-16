@@ -88,6 +88,11 @@ public class RetirementProfileController {
 		profile.setSsClaimAge(body.getSsClaimAge());
 		profile.setSpouseSsMonthlyAtFra(body.getSpouseSsMonthlyAtFra());
 		profile.setSpouseSsClaimAge(body.getSpouseSsClaimAge());
+		profile.setFirstDeathAge(body.getFirstDeathAge());
+		profile.setSurvivorSpendingFactor(body.getSurvivorSpendingFactor());
+		profile.setSsColaRate(body.getSsColaRate());
+		profile.setWithdrawalStrategy(body.getWithdrawalStrategy());
+		profile.setWithdrawalBracketPct(body.getWithdrawalBracketPct());
 		profile.setPlanThroughAge(body.getPlanThroughAge());
 		profile.setFilingStatus(body.getFilingStatus());
 		profile.setTradBalance(body.getTradBalance());
@@ -105,6 +110,7 @@ public class RetirementProfileController {
 		profile.setIncomeStreams(body.getIncomeStreams());
 		profile.setExpenses(body.getExpenses());
 		profile.setLoans(body.getLoans());
+		profile.setOneTimeEvents(body.getOneTimeEvents());
 		profile.setAssets(body.getAssets());
 		return repo.save(profile);
 	}

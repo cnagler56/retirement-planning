@@ -55,6 +55,7 @@ export default function LedgerPage() {
                   <Th>Other inc.</Th>
                   <Th>RMD</Th>
                   <Th>Withdraw</Th>
+                  <Th>One-time</Th>
                   <Th>Living exp.</Th>
                   <Th>Healthcare</Th>
                   <Th>Loan pmt</Th>
@@ -74,6 +75,7 @@ export default function LedgerPage() {
                     <Td>{cell(r.otherIncome)}</Td>
                     <Td>{cell(r.rmd)}</Td>
                     <Td>{cell(r.withdrawal)}</Td>
+                    <Td>{signedCell(r.oneTime)}</Td>
                     <Td>{cell(r.livingExpenses)}</Td>
                     <Td>{cell(r.healthcare)}</Td>
                     <Td>{cell(r.loanPayment)}</Td>
@@ -90,8 +92,8 @@ export default function LedgerPage() {
 
           <p className="text-xs opacity-50">
             Today&apos;s dollars at your {percent(profile.annualReturnRate)} expected return and {percent(profile.inflationRate)} inflation.
-            Withdrawals are drawn taxable → pre-tax → Roth; taxes include the Social Security worksheet, capital gains,
-            NIIT, a flat state tax, and Medicare IRMAA. Deterministic (not Monte Carlo). Not tax advice.
+            {withdrawalNote(profile.withdrawalStrategy, profile.withdrawalBracketPct)} Taxes include the Social Security
+            worksheet, capital gains, NIIT, a flat state tax, and Medicare IRMAA. Deterministic (not Monte Carlo). Not tax advice.
           </p>
         </>
       )}
@@ -99,8 +101,26 @@ export default function LedgerPage() {
   );
 }
 
+// Describes the active withdrawal strategy for the footer note.
+function withdrawalNote(strategy: string | undefined, bracketPct: number | undefined): string {
+  switch (strategy) {
+    case 'PROPORTIONAL':
+      return 'Withdrawals are drawn pro-rata across your taxable, pre-tax, and Roth accounts.';
+    case 'TAX_EFFICIENT':
+      return `Withdrawals are drawn tax-efficiently — pre-tax up to the top of the ${bracketPct ?? 12}% bracket first, then taxable, then Roth.`;
+    default:
+      return 'Withdrawals are drawn taxable → pre-tax → Roth.';
+  }
+}
+
 function cell(v: number) {
   return v > 0 ? money(v) : <span className="opacity-30">—</span>;
+}
+
+// One-time events are signed: inflows positive (green), outflows negative (red).
+function signedCell(v: number) {
+  if (!v) return <span className="opacity-30">—</span>;
+  return <span className={v > 0 ? 'text-emerald-500' : 'text-red-500'}>{v > 0 ? '+' : '−'}{money(Math.abs(v))}</span>;
 }
 
 function Pill({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {

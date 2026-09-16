@@ -161,19 +161,38 @@ public class SocialSecurityService {
 	 * spouse reaches their own claim age (translated to the primary's timeline).
 	 */
 	public double householdAnnualAt(com.home.Domain.RetirementProfile p, int primaryAge) {
-		double total = 0;
+		// In today's dollars, only the COLA's gap against inflation moves the benefit:
+		// realCola == 1 when COLA matches inflation (flat); < 1 when COLA lags (erodes).
+		double realCola = (1 + p.getSsColaRate()) / (1 + p.getInflationRate());
+		double primary = 0, spouse = 0;
 		int claim = p.getSsClaimAge();
 		if (p.getSsMonthlyAtFra() > 0 && claim >= MIN_CLAIM && primaryAge >= claim) {
-			total += monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claim) * 12;
+			primary = monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claim) * 12
+				* Math.pow(realCola, primaryAge - claim);
 		}
 		int sClaim = p.getSpouseSsClaimAge();
 		if (p.getSpouseSsMonthlyAtFra() > 0 && sClaim >= MIN_CLAIM) {
 			int spouseStart = sClaim - (p.getSpouseAge() - p.getCurrentAge()); // in the primary's age terms
 			if (primaryAge >= spouseStart) {
-				total += monthlyBenefit(p.getSpouseBirthYear(), p.getSpouseSsMonthlyAtFra(), sClaim) * 12;
+				spouse = monthlyBenefit(p.getSpouseBirthYear(), p.getSpouseSsMonthlyAtFra(), sClaim) * 12
+					* Math.pow(realCola, primaryAge - spouseStart);
 			}
 		}
-		return total;
+		// After the first death the survivor keeps the larger of the two benefits; the
+		// smaller one stops. Before it, the household receives both.
+		if (isWidowed(p, primaryAge)) return Math.max(primary, spouse);
+		return primary + spouse;
+	}
+
+	/**
+	 * Whether the first death has occurred by a given primary age — i.e. a married
+	 * household modelling a first-death age that this year is at or past. Single
+	 * filers and unset death ages are never widowed.
+	 */
+	public static boolean isWidowed(com.home.Domain.RetirementProfile p, int primaryAge) {
+		boolean married = !"SINGLE".equalsIgnoreCase(p.getFilingStatus());
+		int deathAge = p.getFirstDeathAge();
+		return married && deathAge > 0 && primaryAge >= deathAge;
 	}
 
 	/** Monthly benefit if first claimed at {@code claimAge}, given FRA and PIA. */
