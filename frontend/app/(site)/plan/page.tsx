@@ -17,6 +17,7 @@ import { getStorageMode, loadProfile, saveProfile } from '@/src/lib/profileStore
 import { money, percent } from '@/src/lib/format';
 import { ProjectionChart } from '@/src/components/ProjectionChart';
 import { MonteCarloChart } from '@/src/components/MonteCarloChart';
+import NumericInput from '@/src/components/NumericInput';
 
 const CLAIM_AGES = Array.from({ length: 9 }, (_, i) => 62 + i); // 62..70
 
@@ -30,6 +31,7 @@ export default function PlanPage() {
   const [goal, setGoal] = useState<GoalSeekResult | null>(null);
   const [goalBusy, setGoalBusy] = useState(false);
   const [loadedSaved, setLoadedSaved] = useState(false);
+  const [savingsFromAccounts, setSavingsFromAccounts] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,9 +39,38 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!user || loadedSaved) return;
-    loadProfile(user.userId)
-      .then((p) => { if (p) setProfile({ ...DEFAULT_PROFILE, ...p }); })
-      .catch(() => { /* not saved yet — keep defaults */ })
+    Promise.all([
+      loadProfile(user.userId).catch(() => null),
+      api.listAccounts().catch(() => [] as Awaited<ReturnType<typeof api.listAccounts>>),
+    ])
+      .then(([saved, accounts]) => {
+        let merged = saved ? { ...DEFAULT_PROFILE, ...saved } : DEFAULT_PROFILE;
+        // Retirement savings comes from the itemized accounts when the user has them,
+        // so the planner always reflects the real total (edited in My info → Accounts).
+        const roll = (accounts || []).reduce(
+          (r, a) => {
+            const b = a.balance || 0;
+            if (a.type === 'TRADITIONAL') r.trad += b;
+            else if (a.type === 'ROTH') r.roth += b;
+            else if (a.type === 'TAXABLE') r.taxable += b;
+            else r.other += b;
+            return r;
+          },
+          { trad: 0, roth: 0, taxable: 0, other: 0 },
+        );
+        const total = roll.trad + roll.roth + roll.taxable + roll.other;
+        if (total > 0) {
+          merged = {
+            ...merged,
+            currentSavings: Math.round(total),
+            tradBalance: Math.round(roll.trad),
+            rothBalance: Math.round(roll.roth),
+            taxableBalance: Math.round(roll.taxable + roll.other),
+          };
+          setSavingsFromAccounts(true);
+        }
+        setProfile(merged);
+      })
       .finally(() => setLoadedSaved(true));
   }, [user, loadedSaved]);
 
@@ -121,7 +152,8 @@ export default function PlanPage() {
           <NumberField label="Plan through age" value={profile.planThroughAge} onChange={set('planThroughAge')} min={profile.retirementAge + 1} max={110} />
 
           <Section title="Savings" />
-          <NumberField label="Current savings" value={profile.currentSavings} onChange={set('currentSavings')} min={0} step={1000} prefix="$" />
+          <NumberField label="Retirement Savings" value={profile.currentSavings} onChange={set('currentSavings')} min={0} step={1000} prefix="$"
+            hint={savingsFromAccounts ? 'Total across your accounts — manage them in My info → Accounts.' : undefined} />
           <NumberField label="Monthly contribution" value={profile.monthlyContribution} onChange={set('monthlyContribution')} min={0} step={50} prefix="$" />
           <PercentField label="Expected annual return" value={profile.annualReturnRate} onChange={set('annualReturnRate')} />
           <PercentField label="Inflation" value={profile.inflationRate} onChange={set('inflationRate')} />
@@ -341,8 +373,7 @@ function NumberField({
       <span className="mb-1 block opacity-70">{label}</span>
       <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
         {prefix && <span className="pl-3 text-sm opacity-50">{prefix}</span>}
-        <input type="number" value={Number.isFinite(value) ? value : ''} min={min} max={max} step={step}
-          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        <NumericInput value={value} min={min} max={max} step={step} onChange={onChange} ariaLabel={label}
           className="w-full bg-transparent px-3 py-2 outline-none" />
       </div>
       {hint && <span className="mt-1 block text-xs opacity-45">{hint}</span>}

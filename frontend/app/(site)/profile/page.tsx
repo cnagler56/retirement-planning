@@ -8,6 +8,8 @@ import { money } from '@/src/lib/format';
 import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
 import LoansEditor from '@/src/components/LoansEditor';
+import AccountsEditor from '@/src/components/AccountsEditor';
+import NumericInput from '@/src/components/NumericInput';
 
 type TabId = 'household' | 'accounts' | 'assets' | 'income' | 'expenses' | 'loans' | 'healthcare' | 'assumptions' | 'storage';
 const PROFILE_TABS: { id: TabId; label: string }[] = [
@@ -36,7 +38,10 @@ export default function ProfilePage() {
   const [isOnboarding, setIsOnboarding] = useState(false);
 
   useEffect(() => {
-    setIsOnboarding(new URLSearchParams(window.location.search).get('welcome') === '1');
+    const params = new URLSearchParams(window.location.search);
+    setIsOnboarding(params.get('welcome') === '1');
+    const requested = params.get('tab');
+    if (requested && PROFILE_TABS.some((t) => t.id === requested)) setTab(requested as TabId);
   }, []);
 
   const [p, setP] = useState<RetirementProfile>(DEFAULT_PROFILE);
@@ -248,12 +253,29 @@ export default function ProfilePage() {
       )}
 
       {tab === 'accounts' && (
-      <Group title="Savings & accounts">
-        <Num label="Traditional / pre-tax (IRA, 401k)" value={p.tradBalance} onChange={set('tradBalance')} min={0} step={5000} prefix="$" />
-        <Num label="Roth" value={p.rothBalance} onChange={set('rothBalance')} min={0} step={5000} prefix="$" />
-        <Num label="Taxable brokerage" value={p.taxableBalance} onChange={set('taxableBalance')} min={0} step={5000} prefix="$" />
-        <Num label="Monthly contribution" value={p.monthlyContribution} onChange={set('monthlyContribution')} min={0} step={50} prefix="$" />
-      </Group>
+      <div className="space-y-8">
+        <section>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide opacity-40">Your accounts</h2>
+          <AccountsEditor onPull={(r) => setP((prev) => ({
+            ...prev,
+            tradBalance: Math.round(r.traditional),
+            rothBalance: Math.round(r.roth),
+            taxableBalance: Math.round(r.taxable + r.other),
+            currentSavings: Math.round(r.total),
+          }))} />
+        </section>
+
+        <Group title="Plan balances">
+          <p className="text-xs opacity-55 sm:col-span-2">
+            The amounts your projection uses. &quot;Pull totals into my plan&quot; above fills these from your accounts,
+            or edit them directly. Saved with the rest of your info.
+          </p>
+          <Num label="Traditional / pre-tax (IRA, 401k)" value={p.tradBalance} onChange={set('tradBalance')} min={0} step={5000} prefix="$" />
+          <Num label="Roth" value={p.rothBalance} onChange={set('rothBalance')} min={0} step={5000} prefix="$" />
+          <Num label="Taxable brokerage" value={p.taxableBalance} onChange={set('taxableBalance')} min={0} step={5000} prefix="$" />
+          <Num label="Monthly contribution" value={p.monthlyContribution} onChange={set('monthlyContribution')} min={0} step={50} prefix="$" />
+        </Group>
+      </div>
       )}
 
       {tab === 'assets' && (
@@ -698,8 +720,7 @@ function Num({ label, value, onChange, min, max, step = 1, prefix, hint }: {
       <span className="mb-1 block opacity-70">{label}</span>
       <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
         {prefix && <span className="pl-3 text-sm opacity-50">{prefix}</span>}
-        <input type="number" value={Number.isFinite(value) ? value : ''} min={min} max={max} step={step}
-          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        <NumericInput value={value} min={min} max={max} step={step} onChange={onChange} ariaLabel={label}
           className="w-full bg-transparent px-3 py-2 outline-none" />
       </div>
       {hint && <span className="mt-1 block text-xs opacity-45">{hint}</span>}

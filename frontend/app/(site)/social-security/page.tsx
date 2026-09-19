@@ -8,6 +8,7 @@ import { loadProfile } from '@/src/lib/profileStore';
 import { ssDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { BreakevenChart } from '@/src/components/BreakevenChart';
+import NumericInput from '@/src/components/NumericInput';
 
 const CLAIM_AGES = Array.from({ length: 9 }, (_, i) => 62 + i); // 62..70
 
@@ -242,8 +243,7 @@ function NumberField({ label, value, onChange, min, max, step = 1, prefix, hint 
       <span className="mb-1 block opacity-70">{label}</span>
       <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
         {prefix && <span className="pl-3 text-sm opacity-50">{prefix}</span>}
-        <input type="number" value={Number.isFinite(value) ? value : ''} min={min} max={max} step={step}
-          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        <NumericInput value={value} min={min} max={max} step={step} onChange={onChange} ariaLabel={label}
           className="w-full bg-transparent px-3 py-2 outline-none" />
       </div>
       {hint && <span className="mt-1 block text-xs opacity-45">{hint}</span>}

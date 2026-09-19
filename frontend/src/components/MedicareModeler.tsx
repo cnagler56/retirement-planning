@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type FilingStatus, type MedicareEstimateResult } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
+import NumericInput from '@/src/components/NumericInput';
 
 /** Interactive "what would Medicare cost me?" modeler backed by /api/medicare/estimate. */
 export function MedicareModeler() {
@@ -129,8 +130,7 @@ function Num({ label, value, onChange, step = 1, prefix }: {
       <span className="mb-1 block opacity-70">{label}</span>
       <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
         {prefix && <span className="pl-3 text-sm opacity-50">{prefix}</span>}
-        <input type="number" value={Number.isFinite(value) ? value : ''} step={step} min={0}
-          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        <NumericInput value={value} step={step} min={0} onChange={onChange} ariaLabel={label}
           className="w-full bg-transparent px-3 py-2 outline-none" />
       </div>
     </label>

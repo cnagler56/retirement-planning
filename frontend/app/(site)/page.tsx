@@ -95,7 +95,7 @@ export default function DashboardPage() {
           <Tool href="/social-security" title="Social Security" desc="Claiming breakeven" icon="🧾" />
           <Tool href="/roth" title="Roth" desc="Conversion tax & lifetime strategy" icon="🔄" />
           <Tool href="/medicare" title="Medicare" desc="Costs, IRMAA, how it works" icon="🏥" />
-          <Tool href="/accounts" title="Accounts" desc="Balances & upload API" icon="🏦" />
+          <Tool href="/profile?tab=accounts" title="Accounts" desc="Balances & upload API" icon="🏦" />
         </div>
       </div>
     </div>

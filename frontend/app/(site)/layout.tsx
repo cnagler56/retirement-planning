@@ -7,7 +7,6 @@ import { UserProvider, useUser } from '@/src/lib/UserContext';
 const TABS = [
   { href: '/plan', label: 'Planner' },
   { href: '/scenarios', label: 'Compare' },
-  { href: '/accounts', label: 'Accounts' },
   { href: '/social-security', label: 'Social Security' },
   { href: '/roth', label: 'Roth' },
   { href: '/medicare', label: 'Medicare' },

@@ -13,6 +13,7 @@ import { loadProfile } from '@/src/lib/profileStore';
 import { lifetimeDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { LifetimeWealthChart, type WealthPoint } from '@/src/components/LifetimeWealthChart';
+import NumericInput from '@/src/components/NumericInput';
 
 export default function LifetimeRothPage() {
   const { user } = useUser();
@@ -350,8 +351,7 @@ function Num({ label, value, onChange, min, max, step = 1, prefix, hint }: {
       <span className="mb-1 block text-xs opacity-70">{label}</span>
       <div className="flex items-center rounded-md border border-black/15 focus-within:border-black/40 dark:border-white/15 dark:focus-within:border-white/40">
         {prefix && <span className="pl-2 text-sm opacity-50">{prefix}</span>}
-        <input type="number" value={Number.isFinite(value) ? value : ''} min={min} max={max} step={step}
-          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        <NumericInput value={value} min={min} max={max} step={step} onChange={onChange} ariaLabel={label}
           className="w-full bg-transparent px-2 py-2 outline-none" />
       </div>
       {hint && <span className="mt-1 block text-xs opacity-45">{hint}</span>}
