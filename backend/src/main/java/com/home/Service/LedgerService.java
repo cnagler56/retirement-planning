@@ -69,6 +69,13 @@ public class LedgerService {
 		double trad = Math.max(0, p.getTradBalance());
 		double roth = Math.max(0, p.getRothBalance());
 		double taxable = Math.max(0, p.getTaxableBalance());
+		// Fall back to the single "Retirement Savings" total when the buckets aren't
+		// itemized, so the ledger starts from the same portfolio the projection uses
+		// instead of $0. Placed in the taxable bucket — the closest match to the
+		// projection's untaxed blended drawdown (only its dividend yield is taxed).
+		if (trad + roth + taxable <= 0 && p.getCurrentSavings() > 0) {
+			taxable = p.getCurrentSavings();
+		}
 		double annualContribution = p.getMonthlyContribution() * 12;
 		for (int age = currentAge; age < retirementAge; age++) {
 			trad = trad * (1 + realReturn) + annualContribution;

@@ -68,7 +68,7 @@ public class MonteCarloService {
 		double[][] balancesByYear = new double[years + 1][trials];
 
 		for (int trial = 0; trial < trials; trial++) {
-			double balance = p.getCurrentSavings();
+			double balance = p.getStartingPortfolioTotal();
 			boolean depleted = false;
 			int depletionAge = -1;
 			balancesByYear[0][trial] = balance;
@@ -146,7 +146,7 @@ public class MonteCarloService {
 		Random random = new Random(SEED);
 		int successes = 0;
 		for (int trial = 0; trial < trials; trial++) {
-			double balance = p.getCurrentSavings();
+			double balance = p.getStartingPortfolioTotal();
 			boolean depleted = false;
 			for (int y = 1; y <= years; y++) {
 				int age = currentAge + y;

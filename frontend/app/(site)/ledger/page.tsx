@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, DEFAULT_PROFILE, type LedgerResult, type RetirementProfile } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { loadProfile } from '@/src/lib/profileStore';
+import { loadProfileWithAccounts } from '@/src/lib/profileStore';
 import { money, percent } from '@/src/lib/format';
 
 export default function LedgerPage() {
@@ -14,7 +14,9 @@ export default function LedgerPage() {
 
   useEffect(() => {
     if (!user) return;
-    loadProfile(user.userId).then((p) => { if (p) setProfile({ ...DEFAULT_PROFILE, ...p }); }).catch(() => {});
+    loadProfileWithAccounts(user.userId)
+      .then(({ profile: p }) => { if (p) setProfile({ ...DEFAULT_PROFILE, ...p }); })
+      .catch(() => {});
   }, [user]);
 
   useEffect(() => {

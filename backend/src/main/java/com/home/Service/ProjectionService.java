@@ -61,7 +61,7 @@ public class ProjectionService {
 		}
 		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThroughAge);
 
-		double balance = p.getCurrentSavings();
+		double balance = p.getStartingPortfolioTotal();
 		double contributionsTotal = 0.0;
 		double nestEgg = balance;
 		Integer moneyLastsToAge = null;
@@ -104,7 +104,7 @@ public class ProjectionService {
 				round(yearContribution), round(yearSs), round(yearWithdrawal), phase));
 		}
 
-		if (currentAge >= retirementAge) nestEgg = p.getCurrentSavings();
+		if (currentAge >= retirementAge) nestEgg = p.getStartingPortfolioTotal();
 
 		RetirementCashFlow.AnnualCashFlow atRetirement = cash.at(retirementAge);
 		double gapAtRetirement = atRetirement.netNeed();

@@ -7,7 +7,7 @@
  * Local storage is namespaced by user id, so two accounts signed in from the same
  * browser never see each other's device-only data.
  */
-import { api, withDerivedAges, type RetirementProfile } from './api';
+import { api, withDerivedAges, type Account, type RetirementProfile } from './api';
 
 export type StorageMode = 'server' | 'local';
 
@@ -48,6 +48,53 @@ function clearLocal(userId: number) {
 export async function loadProfile(userId: number): Promise<RetirementProfile | null> {
   const p = getStorageMode(userId) === 'local' ? readLocal(userId) : await api.getProfile();
   return p ? withDerivedAges(p) : null;
+}
+
+/**
+ * Fold itemized account balances into a profile's savings + buckets, so every
+ * page (planner and ledger) starts the plan from the same real total. Returns the
+ * profile unchanged when there are no accounts. `fromAccounts` says whether the
+ * totals came from accounts, for a UI hint.
+ */
+export function applyAccountRollup(
+  profile: RetirementProfile,
+  accounts: Account[],
+): { profile: RetirementProfile; fromAccounts: boolean } {
+  const roll = (accounts || []).reduce(
+    (r, a) => {
+      const b = a.balance || 0;
+      if (a.type === 'TRADITIONAL') r.trad += b;
+      else if (a.type === 'ROTH') r.roth += b;
+      else if (a.type === 'TAXABLE') r.taxable += b;
+      else r.other += b;
+      return r;
+    },
+    { trad: 0, roth: 0, taxable: 0, other: 0 },
+  );
+  const total = roll.trad + roll.roth + roll.taxable + roll.other;
+  if (total <= 0) return { profile, fromAccounts: false };
+  return {
+    profile: {
+      ...profile,
+      currentSavings: Math.round(total),
+      tradBalance: Math.round(roll.trad),
+      rothBalance: Math.round(roll.roth),
+      taxableBalance: Math.round(roll.taxable + roll.other),
+    },
+    fromAccounts: true,
+  };
+}
+
+/** Load the profile and fold in the user's itemized accounts, if any. */
+export async function loadProfileWithAccounts(
+  userId: number,
+): Promise<{ profile: RetirementProfile | null; fromAccounts: boolean }> {
+  const [p, accounts] = await Promise.all([
+    loadProfile(userId).catch(() => null),
+    api.listAccounts().catch(() => [] as Account[]),
+  ]);
+  if (!p) return { profile: null, fromAccounts: false };
+  return applyAccountRollup(p, accounts);
 }
 
 /**

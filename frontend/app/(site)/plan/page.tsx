@@ -13,7 +13,7 @@ import {
   type RetirementProfile,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { getStorageMode, loadProfile, saveProfile } from '@/src/lib/profileStore';
+import { getStorageMode, loadProfileWithAccounts, saveProfile } from '@/src/lib/profileStore';
 import { money, percent } from '@/src/lib/format';
 import { ProjectionChart } from '@/src/components/ProjectionChart';
 import { MonteCarloChart } from '@/src/components/MonteCarloChart';
@@ -39,38 +39,14 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!user || loadedSaved) return;
-    Promise.all([
-      loadProfile(user.userId).catch(() => null),
-      api.listAccounts().catch(() => [] as Awaited<ReturnType<typeof api.listAccounts>>),
-    ])
-      .then(([saved, accounts]) => {
-        let merged = saved ? { ...DEFAULT_PROFILE, ...saved } : DEFAULT_PROFILE;
-        // Retirement savings comes from the itemized accounts when the user has them,
-        // so the planner always reflects the real total (edited in My info → Accounts).
-        const roll = (accounts || []).reduce(
-          (r, a) => {
-            const b = a.balance || 0;
-            if (a.type === 'TRADITIONAL') r.trad += b;
-            else if (a.type === 'ROTH') r.roth += b;
-            else if (a.type === 'TAXABLE') r.taxable += b;
-            else r.other += b;
-            return r;
-          },
-          { trad: 0, roth: 0, taxable: 0, other: 0 },
-        );
-        const total = roll.trad + roll.roth + roll.taxable + roll.other;
-        if (total > 0) {
-          merged = {
-            ...merged,
-            currentSavings: Math.round(total),
-            tradBalance: Math.round(roll.trad),
-            rothBalance: Math.round(roll.roth),
-            taxableBalance: Math.round(roll.taxable + roll.other),
-          };
-          setSavingsFromAccounts(true);
-        }
-        setProfile(merged);
+    // Retirement savings comes from the itemized accounts when the user has them,
+    // so the planner always reflects the real total (edited in My info → Accounts).
+    loadProfileWithAccounts(user.userId)
+      .then(({ profile: p, fromAccounts }) => {
+        setProfile(p ? { ...DEFAULT_PROFILE, ...p } : DEFAULT_PROFILE);
+        setSavingsFromAccounts(fromAccounts);
       })
+      .catch(() => { /* not saved yet — keep defaults */ })
       .finally(() => setLoadedSaved(true));
   }, [user, loadedSaved]);
 

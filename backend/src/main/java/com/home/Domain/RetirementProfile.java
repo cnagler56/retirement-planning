@@ -249,6 +249,17 @@ public class RetirementProfile {
 	public double getCurrentSavings() { return currentSavings; }
 	public void setCurrentSavings(double currentSavings) { this.currentSavings = currentSavings; }
 
+	/**
+	 * Starting portfolio total, reconciling the two ways balances can be entered: the
+	 * single "Retirement Savings" figure ({@code currentSavings}) and the itemized
+	 * per-bucket balances. Whichever is populated wins, so the projection, Monte Carlo,
+	 * and ledger all begin from the same number even if only one field was filled.
+	 */
+	public double getStartingPortfolioTotal() {
+		double buckets = Math.max(0, tradBalance) + Math.max(0, rothBalance) + Math.max(0, taxableBalance);
+		return Math.max(Math.max(0, currentSavings), buckets);
+	}
+
 	public double getMonthlyContribution() { return monthlyContribution; }
 	public void setMonthlyContribution(double monthlyContribution) { this.monthlyContribution = monthlyContribution; }
 

@@ -84,4 +84,26 @@ class LedgerStrategyTest {
 		assertTrue(tradAt(fillTo22, 70) < tradAt(fillTo12, 70),
 			"filling to the 22% bracket should draw pre-tax down faster than filling only to 12%");
 	}
+
+	@Test
+	void ledgerStartsFromCurrentSavingsWhenBucketsAreEmpty() {
+		// "Retirement Savings" entered as a single figure, no per-bucket split.
+		RetirementProfile p = new RetirementProfile();
+		p.setBirthDate(LocalDate.now().minusYears(65));
+		p.setFilingStatus("SINGLE");
+		p.setRetirementAge(65);
+		p.setPlanThroughAge(90);
+		p.setDesiredAnnualIncome(40_000);
+		p.setCurrentSavings(1_000_000); // buckets left at 0
+		p.setInflationRate(0.025);
+		p.setAnnualReturnRate(0.05);
+		p.setSsMonthlyAtFra(2_000);
+		p.setSsClaimAge(65);
+
+		LedgerResult r = ledger.compute(p);
+		assertTrue(r.rows().get(0).endTotal() > 900_000,
+			"the ledger must start from the entered savings, not $0");
+		assertTrue(r.moneyLastsToAge() == null,
+			"$1M against $40k/yr (less SS) should last the whole horizon, not deplete in year one");
+	}
 }
