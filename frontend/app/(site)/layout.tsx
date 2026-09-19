@@ -6,6 +6,7 @@ import { UserProvider, useUser } from '@/src/lib/UserContext';
 
 const TABS = [
   { href: '/plan', label: 'Planner' },
+  { href: '/summary', label: 'Summary' },
   { href: '/scenarios', label: 'Compare' },
   { href: '/social-security', label: 'Social Security' },
   { href: '/roth', label: 'Roth' },

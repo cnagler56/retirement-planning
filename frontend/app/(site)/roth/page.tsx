@@ -80,7 +80,8 @@ export default function RothPage() {
           <NumberField label="Qualified dividends & long-term gains" value={input.qualifiedIncome}
             onChange={set('qualifiedIncome')} min={0} step={1000} prefix="$" />
           <NumberField label="Amount to convert" value={input.conversionAmount}
-            onChange={set('conversionAmount')} min={0} step={5000} prefix="$" />
+            onChange={set('conversionAmount')} min={0} step={5000} prefix="$"
+            hint="A starting example — set how much you'd move from pre-tax to Roth this year." />
         </form>
 
         {/* Results */}

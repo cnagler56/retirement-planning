@@ -91,6 +91,7 @@ export default function DashboardPage() {
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide opacity-50">Tools</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Tool href="/plan" title="Planner" desc="Projection, drawdown, Monte Carlo" icon="📈" />
+          <Tool href="/summary" title="Summary" desc="One-page plan · save as PDF" icon="📄" />
           <Tool href="/scenarios" title="Compare" desc="Scenarios side by side" icon="⚖️" />
           <Tool href="/social-security" title="Social Security" desc="Claiming breakeven" icon="🧾" />
           <Tool href="/roth" title="Roth" desc="Conversion tax & lifetime strategy" icon="🔄" />

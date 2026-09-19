@@ -34,27 +34,26 @@ export function ssDefaults(p: RetirementProfile | null): SsBreakevenRequest {
   };
 }
 
-/** Today's-dollars income from streams active at a given age. */
-function streamIncomeAt(p: RetirementProfile, age: number): number {
-  return (p.incomeStreams || []).reduce((sum, s) => {
-    const end = s.endAge > 0 ? s.endAge : Infinity;
-    if (!s.annualAmount || age < s.startAge || age > end) return sum;
-    const real = s.inflationAdjusted
-      ? s.annualAmount
-      : s.annualAmount / Math.pow(1 + p.inflationRate, Math.max(0, age - p.currentAge));
-    return sum + real;
-  }, 0);
-}
-
 export function conversionTaxDefaults(p: RetirementProfile | null): ConversionTaxRequest {
   if (!p) return DEFAULT_CONVERSION_TAX;
+  // A Roth conversion is a retirement move — most valuable in low-income years after
+  // you stop working but before Social Security and RMDs. So default the scenario to
+  // the first retirement year (or the current year if already retired), not a
+  // still-working year with high wages.
+  const scenarioAge = p.currentAge >= p.retirementAge ? p.currentAge : p.retirementAge;
+  const married = p.filingStatus === 'MARRIED_JOINT';
+  const spouseOffset = married && p.spouseAge > 0 ? p.spouseAge - p.currentAge : 0;
+  const claiming = p.ssClaimAge > 0 && scenarioAge >= p.ssClaimAge;
   return {
     ...DEFAULT_CONVERSION_TAX,
     filingStatus: p.filingStatus || DEFAULT_CONVERSION_TAX.filingStatus,
-    age: p.currentAge || DEFAULT_CONVERSION_TAX.age,
-    spouseAge: p.spouseAge || p.currentAge || DEFAULT_CONVERSION_TAX.spouseAge,
-    annualSocialSecurity: annualSs(p),
-    otherOrdinaryIncome: Math.round((p.annualPension || 0) + streamIncomeAt(p, p.currentAge)),
+    age: scenarioAge || DEFAULT_CONVERSION_TAX.age,
+    spouseAge: (scenarioAge + spouseOffset) || DEFAULT_CONVERSION_TAX.spouseAge,
+    // Social Security only counts once you're claiming it; 0 in the gap years.
+    annualSocialSecurity: claiming ? annualSs(p) : 0,
+    // Just the pension by default — a reliable retirement income. Wages, rental, and
+    // existing RMDs vary by the year you're modeling, so you add those yourself.
+    otherOrdinaryIncome: Math.round(p.annualPension || 0),
   };
 }
 
