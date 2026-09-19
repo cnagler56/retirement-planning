@@ -10,7 +10,7 @@ import {
   type RetirementProfile,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { loadProfile } from '@/src/lib/profileStore';
+import { loadProfileWithAccounts } from '@/src/lib/profileStore';
 import {
   deleteScenario as removeScenario,
   listScenarios,
@@ -70,7 +70,7 @@ export default function ScenariosPage() {
 
   const addScenario = useCallback(async () => {
     if (!user) return;
-    const base = (await loadProfile(user.userId).catch(() => null)) ?? DEFAULT_PROFILE;
+    const base = (await loadProfileWithAccounts(user.userId).then((r) => r.profile).catch(() => null)) ?? DEFAULT_PROFILE;
     setScenarios((prev) => [
       ...prev,
       { id: 0, name: `Scenario ${prev.length + 1}`, inputs: { ...DEFAULT_PROFILE, ...base } },

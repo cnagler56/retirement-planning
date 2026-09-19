@@ -9,7 +9,7 @@ import {
   type LifetimeRothResult,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { loadProfile } from '@/src/lib/profileStore';
+import { loadProfileWithAccounts } from '@/src/lib/profileStore';
 import { lifetimeDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { LifetimeWealthChart, type WealthPoint } from '@/src/components/LifetimeWealthChart';
@@ -26,7 +26,7 @@ export default function LifetimeRothPage() {
   // Prefill from the saved household profile once signed in.
   useEffect(() => {
     if (!user || seeded) return;
-    loadProfile(user.userId).then((p) => { if (p) setInput(lifetimeDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+    loadProfileWithAccounts(user.userId).then(({ profile: p }) => { if (p) setInput(lifetimeDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
   }, [user, seeded]);
 
   useEffect(() => {

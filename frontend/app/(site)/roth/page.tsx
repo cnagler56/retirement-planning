@@ -9,7 +9,7 @@ import {
   type ConversionTaxResult,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
-import { loadProfile } from '@/src/lib/profileStore';
+import { loadProfileWithAccounts } from '@/src/lib/profileStore';
 import { conversionTaxDefaults } from '@/src/lib/profileDefaults';
 import { money, percent } from '@/src/lib/format';
 import { RothTorpedoChart } from '@/src/components/RothTorpedoChart';
@@ -25,7 +25,7 @@ export default function RothPage() {
   // Prefill from the saved household profile once signed in.
   useEffect(() => {
     if (!user || seeded) return;
-    loadProfile(user.userId).then((p) => { if (p) setInput(conversionTaxDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+    loadProfileWithAccounts(user.userId).then(({ profile: p }) => { if (p) setInput(conversionTaxDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
   }, [user, seeded]);
 
   useEffect(() => {

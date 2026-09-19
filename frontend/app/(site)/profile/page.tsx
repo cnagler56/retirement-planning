@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ageFromBirthDate, api, DEFAULT_PROFILE, type Asset, type ExpenseItem, type IncomeStream, type MedicareEstimateResult, type OneTimeEvent, type RetirementProfile, type StateTaxInfo } from '@/src/lib/api';
 import { money } from '@/src/lib/format';
-import { getStorageMode, loadProfile, saveProfile, type StorageMode } from '@/src/lib/profileStore';
+import { getStorageMode, loadProfileWithAccounts, saveProfile, type StorageMode } from '@/src/lib/profileStore';
 import { useUser } from '@/src/lib/UserContext';
 import LoansEditor from '@/src/components/LoansEditor';
 import AccountsEditor from '@/src/components/AccountsEditor';
@@ -89,8 +89,10 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user || loaded) return;
     setMode(getStorageMode(user.userId));
-    loadProfile(user.userId)
-      .then((saved) => { if (saved) setP({ ...DEFAULT_PROFILE, ...saved }); })
+    // Fold the itemized accounts into the plan balances so they reflect reality on
+    // load — no need to "pull" first. Saving then persists the reconciled totals.
+    loadProfileWithAccounts(user.userId)
+      .then(({ profile: saved }) => { if (saved) setP({ ...DEFAULT_PROFILE, ...saved }); })
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, [user, loaded]);
@@ -267,8 +269,8 @@ export default function ProfilePage() {
 
         <Group title="Plan balances">
           <p className="text-xs opacity-55 sm:col-span-2">
-            The amounts your projection uses. &quot;Pull totals into my plan&quot; above fills these from your accounts,
-            or edit them directly. Saved with the rest of your info.
+            The amounts your projection uses. These fill automatically from your accounts above; edit an account
+            and use &quot;Pull totals into my plan&quot; to refresh them, or type a value directly. Saved with the rest of your info.
           </p>
           <Num label="Traditional / pre-tax (IRA, 401k)" value={p.tradBalance} onChange={set('tradBalance')} min={0} step={5000} prefix="$" />
           <Num label="Roth" value={p.rothBalance} onChange={set('rothBalance')} min={0} step={5000} prefix="$" />
