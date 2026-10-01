@@ -404,7 +404,9 @@ export default function ProfilePage() {
                 {s.endsAtRetirement ? (
                   <div className="text-sm">
                     <span className="mb-1 block opacity-70">Until</span>
-                    <div className="py-2 opacity-70">Retirement (age {p.retirementAge})</div>
+                    <div className="py-2 opacity-70">
+                      Retirement (age {s.owner === 'SPOUSE' ? (p.spouseRetirementAge || p.retirementAge) : p.retirementAge})
+                    </div>
                   </div>
                 ) : (
                   <Num label={s.owner === 'SPOUSE' ? "Until spouse's age (0 = for life)" : 'Until your age (0 = for life)'}
