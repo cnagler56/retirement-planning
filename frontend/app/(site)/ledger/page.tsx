@@ -29,7 +29,7 @@ export default function LedgerPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Year-by-year plan</h1>
           <p className="mt-1 text-sm opacity-70">
-            Every retirement year in today&apos;s dollars — income, expenses, RMDs, taxes, Medicare, and the balance
+            Every year in today&apos;s dollars — income, expenses, RMDs, taxes, Medicare, and the balance
             that&apos;s left. Edit the inputs on your{' '}
             <Link href="/profile" className="underline underline-offset-4">profile</Link>.
           </p>
@@ -57,6 +57,7 @@ export default function LedgerPage() {
                   <Th>Other inc.</Th>
                   <Th>RMD</Th>
                   <Th>Withdraw</Th>
+                  <Th>Saved</Th>
                   <Th>One-time</Th>
                   <Th>Living exp.</Th>
                   <Th>Healthcare</Th>
@@ -65,18 +66,23 @@ export default function LedgerPage() {
                   <Th>Fed tax</Th>
                   <Th>State tax</Th>
                   <Th>IRMAA</Th>
+                  <Th>Payroll tax</Th>
                   <Th>End balance</Th>
                 </tr>
               </thead>
               <tbody>
                 {ledger.rows.map((r) => (
                   <tr key={r.age} className={`border-b border-black/5 last:border-0 dark:border-white/5 ${r.shortfall ? 'bg-red-500/10' : ''}`}>
-                    <Td left strong>{r.age}</Td>
+                    <Td left strong>
+                      {r.age}
+                      {r.working && <span className="ml-1.5 rounded bg-cyan-500/15 px-1 py-0.5 text-[10px] font-normal text-cyan-300">working</span>}
+                    </Td>
                     <Td>{cell(r.socialSecurity)}</Td>
                     <Td>{cell(r.pension)}</Td>
                     <Td>{cell(r.otherIncome)}</Td>
                     <Td>{cell(r.rmd)}</Td>
                     <Td>{cell(r.withdrawal)}</Td>
+                    <Td>{r.saved > 0 ? <span className="text-emerald-500">+{money(r.saved)}</span> : cell(0)}</Td>
                     <Td>{signedCell(r.oneTime)}</Td>
                     <Td>{cell(r.livingExpenses)}</Td>
                     <Td>{cell(r.healthcare)}</Td>
@@ -85,6 +91,7 @@ export default function LedgerPage() {
                     <Td>{cell(r.federalTax)}</Td>
                     <Td>{cell(r.stateTax)}</Td>
                     <Td>{cell(r.irmaa)}</Td>
+                    <Td>{cell(r.payrollTax)}</Td>
                     <Td strong>{r.shortfall ? '$0' : money(r.endTotal)}</Td>
                   </tr>
                 ))}
@@ -94,7 +101,8 @@ export default function LedgerPage() {
 
           <p className="text-xs opacity-50">
             Today&apos;s dollars at your {percent(profile.annualReturnRate)} expected return and {percent(profile.inflationRate)} inflation.
-            {withdrawalNote(profile.withdrawalStrategy, profile.withdrawalBracketPct)} Taxes include the Social Security
+            {withdrawalNote(profile.withdrawalStrategy, profile.withdrawalBracketPct)} Working years (when a job is marked as a paycheck) show pay against
+            spending, with income and payroll tax and the surplus saved. Taxes include the Social Security
             worksheet, capital gains, NIIT, a flat state tax, and Medicare IRMAA. Deterministic (not Monte Carlo). Not tax advice.
           </p>
         </>

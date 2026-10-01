@@ -79,6 +79,7 @@ public class RetirementProfileController {
 		profile.setBirthDate(body.getBirthDate());
 		profile.setSpouseBirthDate(body.getSpouseBirthDate());
 		profile.setRetirementAge(body.getRetirementAge());
+		profile.setSpouseRetirementAge(body.getSpouseRetirementAge());
 		profile.setCurrentSavings(body.getCurrentSavings());
 		profile.setMonthlyContribution(body.getMonthlyContribution());
 		profile.setAnnualReturnRate(body.getAnnualReturnRate());

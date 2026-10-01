@@ -18,7 +18,12 @@ import com.home.tax.TaxConstants.Filing;
  *    of ordinary taxable income and are taxed at 0/15/20%. Pushing up ordinary
  *    income (e.g. a conversion) can spill gains from the 0% band into 15%.
  *
- * Out of scope: itemized deductions, credits, NIIT, AMT, and state tax.
+ *
+ * Deductions are the standard deduction (incl. the 65+ addition) plus the
+ * 2025–2028 senior deduction, which phases out with MAGI — so inside its phase-out
+ * a conversion also costs deduction, not just bracket rate.
+ *
+ * Out of scope: itemized deductions, credits, AMT, and state tax.
  */
 @Service
 public class FederalTaxService {
@@ -37,15 +42,27 @@ public class FederalTaxService {
 		return compute(filing, filersOver65, otherOrdinaryIncome, socialSecurity, qualifiedIncome, 1.0);
 	}
 
+	/** Real-dollar variant for the current {@link TaxConstants#TAX_YEAR}. */
+	public FederalTax compute(Filing filing, int filersOver65,
+			double otherOrdinaryIncome, double socialSecurity, double qualifiedIncome,
+			double ssThresholdScale) {
+		return compute(filing, filersOver65, otherOrdinaryIncome, socialSecurity, qualifiedIncome,
+			ssThresholdScale, TaxConstants.TAX_YEAR);
+	}
+
 	/**
 	 * @param ssThresholdScale scales the Social Security taxability thresholds. They
 	 *                         are not inflation-indexed, so a real-dollar multi-year
 	 *                         model passes {@code 1/(1+inflation)^t} to shrink them
-	 *                         over time (more of the benefit becomes taxable).
+	 *                         over time (more of the benefit becomes taxable). The
+	 *                         senior deduction and NIIT thresholds are not indexed
+	 *                         either and scale the same way.
+	 * @param taxYear          calendar year being taxed — decides whether the
+	 *                         2025–2028 senior deduction applies
 	 */
 	public FederalTax compute(Filing filing, int filersOver65,
 			double otherOrdinaryIncome, double socialSecurity, double qualifiedIncome,
-			double ssThresholdScale) {
+			double ssThresholdScale, int taxYear) {
 
 		double ordOther = Math.max(0, otherOrdinaryIncome);
 		double ss = Math.max(0, socialSecurity);
@@ -55,7 +72,8 @@ public class FederalTaxService {
 		double agi = ordOther + qualified + taxableSs;
 
 		double stdDeduction = TaxConstants.standardDeduction(filing, filersOver65);
-		double taxableIncome = Math.max(0, agi - stdDeduction);
+		double seniorDeduction = TaxConstants.seniorDeduction(filing, filersOver65, agi, taxYear, ssThresholdScale);
+		double taxableIncome = Math.max(0, agi - stdDeduction - seniorDeduction);
 
 		// Qualified income is taxed at capital-gains rates; the rest is ordinary.
 		double qualifiedInTaxable = Math.min(qualified, taxableIncome);
@@ -78,7 +96,8 @@ public class FederalTaxService {
 			round(capGainsTax),
 			round(ordinaryTaxable),
 			marginalOrdinaryRate(ordinaryTaxable, TaxConstants.ordinaryBrackets(filing)),
-			round(niit)
+			round(niit),
+			round(seniorDeduction)
 		);
 	}
 
@@ -146,13 +165,14 @@ public class FederalTaxService {
 	 *
 	 * @param totalTax               federal income tax owed
 	 * @param agi                    adjusted gross income
-	 * @param taxableIncome          AGI minus the standard deduction
+	 * @param taxableIncome          AGI minus the standard and senior deductions
 	 * @param taxableSocialSecurity  how much of the SS benefit was taxable
 	 * @param ordinaryTax            tax on ordinary income
 	 * @param capitalGainsTax        tax on qualified dividends / long-term gains
 	 * @param ordinaryTaxableIncome  taxable income excluding qualified income
 	 * @param marginalOrdinaryRate   bracket the last ordinary dollar fell in
 	 * @param niit                   Net Investment Income Tax (3.8%) included in totalTax
+	 * @param seniorDeduction        the 2025–2028 senior deduction taken (after phase-out)
 	 */
 	public record FederalTax(
 			double totalTax,
@@ -163,5 +183,6 @@ public class FederalTaxService {
 			double capitalGainsTax,
 			double ordinaryTaxableIncome,
 			double marginalOrdinaryRate,
-			double niit) {}
+			double niit,
+			double seniorDeduction) {}
 }

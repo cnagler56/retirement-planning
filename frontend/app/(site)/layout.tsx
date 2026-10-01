@@ -70,11 +70,16 @@ function Header() {
   );
 }
 
+// Pages that need the whole screen (side-by-side tables) opt out of the reading-width cap.
+const FULL_WIDTH = ['/scenarios'];
+
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const wide = FULL_WIDTH.some((p) => pathname === p || pathname.startsWith(p + '/'));
   return (
     <UserProvider>
       <Header />
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <main className={`mx-auto px-4 py-8 ${wide ? 'max-w-none lg:px-6' : 'max-w-5xl'}`}>{children}</main>
     </UserProvider>
   );
 }

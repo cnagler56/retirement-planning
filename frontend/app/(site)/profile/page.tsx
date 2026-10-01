@@ -249,7 +249,11 @@ export default function ProfilePage() {
         </div>
         <DateField label="Your date of birth" value={p.birthDate} onChange={set('birthDate')} />
         {married && <DateField label="Spouse's date of birth" value={p.spouseBirthDate} onChange={set('spouseBirthDate')} />}
-        <Num label="Target retirement age" value={p.retirementAge} onChange={set('retirementAge')} min={ageFromBirthDate(p.birthDate) + 1} max={100} />
+        <Num label="Your target retirement age" value={p.retirementAge} onChange={set('retirementAge')} min={ageFromBirthDate(p.birthDate) + 1} max={100} />
+        {married && (
+          <Num label="Spouse's retirement age" value={p.spouseRetirementAge} onChange={set('spouseRetirementAge')} min={ageFromBirthDate(p.spouseBirthDate) + 1} max={100}
+            hint="Their own age. A spouse paycheck stops here." />
+        )}
         <Num label="Plan through age" value={p.planThroughAge} onChange={set('planThroughAge')} min={p.retirementAge + 1} max={110} />
       </Group>
       )}
@@ -361,7 +365,9 @@ export default function ProfilePage() {
           Anything beyond savings and Social Security — employment, rental, business, a pension, or future income
           like rent from inherited land. Pick whose income it is and what kind (the kind sets whether it&apos;s taxed).
           The start/end ages are that person&apos;s ages — so a spouse who keeps working can end at her own retirement age.
-          Leave &quot;until age&quot; at 0 for lifelong income.
+          Leave &quot;until age&quot; at 0 for lifelong income. Mark a job as a <strong>paycheck</strong> and it stops at your
+          retirement age instead — and the plan then models your working years in full (pay minus spending and taxes,
+          with the surplus saved), so retiring later shows the extra years of earning.
         </p>
         {(p.incomeStreams || []).length === 0 && (
           <p className="text-sm opacity-50">No extra income streams yet.</p>
@@ -379,7 +385,11 @@ export default function ProfilePage() {
                     options={[['SELF', 'You'], ['SPOUSE', 'Your spouse']]} />
                 )}
                 <SelectField label="Kind of income" value={s.type || 'TAXABLE_OTHER'}
-                  onChange={(v) => updateStream(i, { type: v as IncomeStream['type'] })}
+                  onChange={(v) => updateStream(i, {
+                    type: v as IncomeStream['type'],
+                    // Wages default to a paycheck that stops at retirement.
+                    ...(v === 'EMPLOYMENT' || v === 'SELF_EMPLOYMENT' ? { endsAtRetirement: true } : {}),
+                  })}
                   options={[
                     ['EMPLOYMENT', 'Employment / wages'],
                     ['SELF_EMPLOYMENT', 'Self-employment / business'],
@@ -391,15 +401,29 @@ export default function ProfilePage() {
                   ]} />
                 <Num label={s.owner === 'SPOUSE' ? "Starts at spouse's age" : 'Starts at your age'}
                   value={s.startAge} onChange={(v) => updateStream(i, { startAge: v })} min={0} max={110} />
-                <Num label={s.owner === 'SPOUSE' ? "Until spouse's age (0 = for life)" : 'Until your age (0 = for life)'}
-                  value={s.endAge} onChange={(v) => updateStream(i, { endAge: v })} min={0} max={110} />
+                {s.endsAtRetirement ? (
+                  <div className="text-sm">
+                    <span className="mb-1 block opacity-70">Until</span>
+                    <div className="py-2 opacity-70">Retirement (age {p.retirementAge})</div>
+                  </div>
+                ) : (
+                  <Num label={s.owner === 'SPOUSE' ? "Until spouse's age (0 = for life)" : 'Until your age (0 = for life)'}
+                    value={s.endAge} onChange={(v) => updateStream(i, { endAge: v })} min={0} max={110} />
+                )}
               </div>
-              <div className="mt-2 flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={s.inflationAdjusted}
-                    onChange={(e) => updateStream(i, { inflationAdjusted: e.target.checked })} />
-                  <span className="opacity-70">Keeps pace with inflation</span>
-                </label>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={s.inflationAdjusted}
+                      onChange={(e) => updateStream(i, { inflationAdjusted: e.target.checked })} />
+                    <span className="opacity-70">Keeps pace with inflation</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={!!s.endsAtRetirement}
+                      onChange={(e) => updateStream(i, { endsAtRetirement: e.target.checked })} />
+                    <span className="opacity-70">Paycheck — stops when we retire</span>
+                  </label>
+                </div>
                 <button type="button" onClick={() => removeStream(i)} className="text-sm text-red-500 underline underline-offset-4">
                   Remove
                 </button>

@@ -56,7 +56,7 @@ export default function SummaryPage() {
   const runsOut = ledger ? ledger.moneyLastsToAge : (projection?.moneyLastsToAge ?? null);
   const endingBalance = ledger ? (ledger.rows.at(-1)?.endTotal ?? 0) : (projection?.balanceAtEnd ?? 0);
   const lifetimeTax = ledger
-    ? ledger.rows.reduce((s, r) => s + r.federalTax + r.stateTax + r.irmaa, 0)
+    ? ledger.rows.filter((r) => !r.working).reduce((s, r) => s + r.federalTax + r.stateTax + r.irmaa, 0)
     : null;
   const savings = Math.max(profile.currentSavings, profile.tradBalance + profile.rothBalance + profile.taxableBalance);
   const name = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : '';

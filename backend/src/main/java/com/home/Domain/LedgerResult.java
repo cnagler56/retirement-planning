@@ -4,7 +4,8 @@ import java.util.List;
 
 /**
  * A full year-by-year retirement cash-flow ledger, in today's (inflation-adjusted)
- * dollars, from retirement age through the planning horizon.
+ * dollars, from retirement age (or today, when working years are modeled) through
+ * the planning horizon.
  *
  * @param rows              one row per year
  * @param moneyLastsToAge   age the portfolio is exhausted, or null if it lasts
@@ -37,6 +38,10 @@ public record LedgerResult(
 	 * @param endTrad/Roth/Taxable  end-of-year balances by account
 	 * @param endTotal         total end-of-year portfolio
 	 * @param shortfall        true if the portfolio couldn't cover the year's needs
+	 * @param working          a pre-retirement working year (only when a paycheck is modeled)
+	 * @param payrollTax       FICA on paychecks (working years)
+	 * @param saved            added to savings: the pre-tax contribution plus any surplus
+	 *                         income (or unneeded RMD) reinvested in taxable
 	 */
 	public record LedgerRow(
 			int age,
@@ -59,5 +64,8 @@ public record LedgerResult(
 			double endRoth,
 			double endTaxable,
 			double endTotal,
-			boolean shortfall) {}
+			boolean shortfall,
+			boolean working,
+			double payrollTax,
+			double saved) {}
 }

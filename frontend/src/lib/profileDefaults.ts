@@ -77,6 +77,9 @@ export function lifetimeDefaults(p: RetirementProfile | null): LifetimeRothReque
     // Default the conversion window to the gap years: retirement → RMD age.
     convStartAge: p.retirementAge || DEFAULT_LIFETIME_ROTH.convStartAge,
     convEndAge: (birthYearFrom(p.birthDate) || new Date().getFullYear() - p.currentAge) >= 1960 ? 74 : 72,
-    incomeStreams: p.incomeStreams || [],
+    incomeStreams: (p.incomeStreams || []).map((s) =>
+      s.endsAtRetirement
+        ? { ...s, endAge: Math.max(0, p.retirementAge - 1 + (s.owner === 'SPOUSE' ? (p.spouseAge || p.currentAge) - p.currentAge : 0)) }
+        : s),
   };
 }

@@ -74,19 +74,19 @@ class WithdrawalSequencerTest {
 
 	@Test
 	void bracketFillRoomIsGrossRoomUnderTheNextBracket() {
-		// MFJ 2025: top of 12% is the 22% floor $96,950; std deduction $30,000.
+		// MFJ 2026: top of 12% is the 22% floor $100,800; std deduction $32,200.
 		double room = WithdrawalSequencer.bracketFillRoom(Filing.MARRIED_JOINT, 0,
-			/*committedOrdinary*/ 26_950, /*targetRate*/ 0.12, /*realScale*/ 1.0);
-		assertEquals(100_000, room, EPS); // (96,950 + 30,000) − 26,950
+			/*committedOrdinary*/ 33_000, /*targetRate*/ 0.12, /*realScale*/ 1.0);
+		assertEquals(100_000, room, EPS); // (100,800 + 32,200) − 33,000
 	}
 
 	@Test
 	void bracketFillRoomAddsThe65PlusDeductionAndErodesWithRealScale() {
 		double bothOver65 = WithdrawalSequencer.bracketFillRoom(Filing.MARRIED_JOINT, 2, 0, 0.12, 1.0);
-		assertEquals(96_950 + 30_000 + 2 * 1_600, bothOver65, EPS);
+		assertEquals(100_800 + 32_200 + 2 * 1_650, bothOver65, EPS);
 
 		double eroded = WithdrawalSequencer.bracketFillRoom(Filing.MARRIED_JOINT, 0, 0, 0.12, 0.9);
-		assertEquals((96_950 + 30_000) * 0.9, eroded, EPS);
+		assertEquals((100_800 + 32_200) * 0.9, eroded, EPS);
 	}
 
 	@Test

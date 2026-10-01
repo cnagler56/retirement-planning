@@ -12,6 +12,7 @@ import com.home.tax.FederalTaxService;
 import com.home.tax.FederalTaxService.FederalTax;
 import com.home.tax.IrmaaTable;
 import com.home.tax.RmdTable;
+import com.home.tax.TaxConstants;
 import com.home.tax.TaxConstants.Filing;
 import com.home.tax.WithdrawalSequencer;
 import com.home.tax.WithdrawalStrategy;
@@ -21,7 +22,9 @@ import com.home.tax.WithdrawalStrategy;
  *
  * It first grows the current balances (plus contributions) to the retirement age
  * across three buckets — pre-tax, Roth, taxable — then, each year through the
- * horizon, plays out the real mechanics:
+ * horizon, plays out the real mechanics. When a paycheck is modeled, the working
+ * years run through the same loop instead (paycheck against spending, income and
+ * payroll tax, contribution deferred pre-tax, surplus saved to taxable):
  *
  *  1. Required minimum distributions from the pre-tax account (age 73/75).
  *  2. Income that reduces the withdrawal need — Social Security, pension, streams.
@@ -77,20 +80,43 @@ public class LedgerService {
 			taxable = p.getCurrentSavings();
 		}
 		double annualContribution = p.getMonthlyContribution() * 12;
-		for (int age = currentAge; age < retirementAge; age++) {
-			trad = trad * (1 + realReturn) + annualContribution;
-			roth *= (1 + realReturn);
-			taxable *= (1 + realReturn);
-		}
+		// With a paycheck modeled, the working years run through the full year loop below
+		// (income, spending, income + payroll tax, surplus saved). Otherwise they are
+		// accumulation years: growth plus the contribution, earnings assumed to cover living.
+		boolean modelWorking = p.hasPaycheck();
 
 		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThrough);
 
 		List<LedgerRow> rows = new ArrayList<>();
 		Integer moneyLastsToAge = null;
 
-		for (int age = retirementAge; age <= planThrough; age++) {
+		// Accumulation years without a modeled paycheck: earnings cover living, the
+		// contribution is saved to pre-tax, and the portfolio just grows. Emit a row per
+		// year so the growing balance is shown, instead of the table jumping straight to
+		// the retirement age. (With a paycheck, the main loop simulates these years in full.)
+		int firstYear = modelWorking ? currentAge : retirementAge;
+		for (int age = currentAge; age < firstYear; age++) {
+			double startBalance = trad + roth + taxable;
+			trad = trad * (1 + realReturn) + annualContribution;
+			roth *= (1 + realReturn);
+			taxable *= (1 + realReturn);
+			double endTotal = trad + roth + taxable;
+			double loanBalance = cash.at(age).loanBalance();
+			rows.add(new LedgerRow(
+				age, round(startBalance), 0, 0, 0,
+				0, 0, 0,
+				0, 0, 0, round(loanBalance),
+				0, 0, 0, 0,
+				round(trad), round(roth), round(taxable), round(endTotal), false,
+				true, 0, round(annualContribution)));
+		}
+
+		for (int age = firstYear; age <= planThrough; age++) {
+			boolean working = age < retirementAge;
+			double contribution = working ? annualContribution : 0; // pre-tax deferral into trad
 			int t = age - currentAge;
 			double realScale = Math.pow(1 + inflation, -t);
+			int taxYear = TaxConstants.TAX_YEAR + t; // the senior deduction ends after 2028
 			// After the first death the survivor files single with compressed brackets and
 			// halved IRMAA thresholds — the widow's penalty — and one fewer person on Medicare.
 			boolean widowed = SocialSecurityService.isWidowed(p, age);
@@ -115,6 +141,10 @@ public class LedgerService {
 			double health = cf.healthcare() + cf.ltc();
 			double expenses = cf.allInSpending();
 			double oneTime = cf.oneTimeNet(); // + inflow reduces the need, − outflow adds to it
+			double payroll = cf.payrollTax();  // FICA on paychecks (working years only)
+			// Portfolio cash needed before income tax; the contribution comes out of pay.
+			double baseNeed = expenses + payroll + contribution - ss - pension - streams - oneTime;
+			double ordinaryIncome = pension + Math.max(0, taxableStreams - contribution);
 
 			double rmd = RmdTable.required(age, birthYear, trad);
 
@@ -123,11 +153,11 @@ public class LedgerService {
 			double wTaxable = 0, wTradExtra = 0, wRoth = 0;
 			boolean shortfall = false;
 			for (int iter = 0; iter < 6; iter++) {
-				double need = expenses + tax - ss - pension - streams - oneTime; // total portfolio cash needed
+				double need = baseNeed + tax;                            // total portfolio cash needed
 				double remaining = Math.max(0, need - rmd);              // beyond the forced RMD
 				// Tax-efficient fills pre-tax up to the target bracket; others ignore fillRoom.
-				double fillRoom = strategy == WithdrawalStrategy.TAX_EFFICIENT
-					? WithdrawalSequencer.bracketFillRoom(yearFiling, over65, pension + rmd + taxableStreams,
+				double fillRoom = strategy == WithdrawalStrategy.TAX_EFFICIENT && !working
+					? WithdrawalSequencer.bracketFillRoom(yearFiling, over65, ordinaryIncome + rmd,
 						taxEfficientTargetRate, realScale)
 					: 0;
 				WithdrawalSequencer.Draw draw = WithdrawalSequencer.source(
@@ -137,8 +167,8 @@ public class LedgerService {
 				wRoth = draw.fromRoth();
 				shortfall = draw.shortfall();
 
-				double ordinary = pension + rmd + wTradExtra + taxableStreams;
-				FederalTax f = federal.compute(yearFiling, over65, ordinary, ss, qualified, realScale);
+				double ordinary = ordinaryIncome + rmd + wTradExtra;
+				FederalTax f = federal.compute(yearFiling, over65, ordinary, ss, qualified, realScale, taxYear);
 				taxableSs = f.taxableSocialSecurity();
 				fedTax = f.totalTax();
 				stateTax = stateRate * Math.max(0, f.taxableIncome() - f.taxableSocialSecurity());
@@ -152,9 +182,11 @@ public class LedgerService {
 			trad = Math.max(0, trad - rmd - wTradExtra);
 			taxable = Math.max(0, taxable - wTaxable);
 			roth = Math.max(0, roth - wRoth);
-			// RMD not needed for spending is parked in taxable.
-			double rmdSurplus = Math.max(0, (rmd + wTaxable + wTradExtra + wRoth) - (expenses + tax - ss - pension - streams - oneTime));
-			taxable += Math.max(0, rmdSurplus);
+			// Income or RMD not needed for spending is parked in taxable; the contribution
+			// goes to pre-tax.
+			double surplus = Math.max(0, (rmd + wTaxable + wTradExtra + wRoth) - (baseNeed + tax));
+			taxable += surplus;
+			trad += contribution;
 
 			trad *= (1 + realReturn);
 			roth *= (1 + realReturn);
@@ -168,7 +200,8 @@ public class LedgerService {
 				round(rmd), round(wTaxable + wTradExtra + wRoth), round(oneTime),
 				round(living), round(health), round(loanPayment), round(loanBalance),
 				round(fedTax), round(stateTax), round(irmaa), round(taxableSs),
-				round(trad), round(roth), round(taxable), round(endTotal), shortfall));
+				round(trad), round(roth), round(taxable), round(endTotal), shortfall,
+				working, round(payroll), round(contribution + surplus)));
 		}
 
 		return new LedgerResult(rows, moneyLastsToAge, round4(realReturn), rmdStart);

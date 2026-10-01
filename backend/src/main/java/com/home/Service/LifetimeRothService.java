@@ -15,6 +15,7 @@ import com.home.tax.FederalTaxService;
 import com.home.tax.FederalTaxService.FederalTax;
 import com.home.tax.IrmaaTable;
 import com.home.tax.RmdTable;
+import com.home.tax.TaxConstants;
 import com.home.tax.TaxConstants.Filing;
 
 /**
@@ -111,6 +112,7 @@ public class LifetimeRothService {
 		for (int age = currentAge; age <= planThrough; age++) {
 			int t = age - currentAge;
 			double realScale = Math.pow(1 + inflation, -t); // non-indexed thresholds shrink in real terms
+			int taxYear = TaxConstants.TAX_YEAR + t;         // the senior deduction ends after 2028
 			int spouseAge = spouseAge0 + t;
 
 			// After the first death the survivor files Single (the "widow's penalty").
@@ -128,14 +130,14 @@ public class LifetimeRothService {
 
 			double conversion = 0;
 			if (doConvert && age >= convStart && age <= convEnd && target > 0 && trad - rmd > 0) {
-				conversion = fillToTarget(effFiling, over65, pension + rmd + streamIncome, ss, qualified, realScale, target);
+				conversion = fillToTarget(effFiling, over65, pension + rmd + streamIncome, ss, qualified, realScale, taxYear, target);
 				conversion = Math.min(conversion, trad - rmd);
 				if (maxConv > 0) conversion = Math.min(conversion, maxConv);
 				conversion = Math.max(0, conversion);
 			}
 
 			double ordinary = pension + rmd + streamIncome + conversion;
-			FederalTax f = federal.compute(effFiling, over65, ordinary, ss, qualified, realScale);
+			FederalTax f = federal.compute(effFiling, over65, ordinary, ss, qualified, realScale, taxYear);
 
 			double stateBase = Math.max(0, f.taxableIncome() - (stateTaxesSs ? 0 : f.taxableSocialSecurity()));
 			double stateTax = stateRate * stateBase;
@@ -201,14 +203,14 @@ public class LifetimeRothService {
 	 * than a dollar. Monotonic, so bisection converges cleanly.
 	 */
 	private double fillToTarget(Filing filing, int over65, double baseOrdinary,
-			double ss, double qualified, double realScale, double target) {
-		double oti0 = federal.compute(filing, over65, baseOrdinary, ss, qualified, realScale).ordinaryTaxableIncome();
+			double ss, double qualified, double realScale, int taxYear, double target) {
+		double oti0 = federal.compute(filing, over65, baseOrdinary, ss, qualified, realScale, taxYear).ordinaryTaxableIncome();
 		if (oti0 >= target) return 0;
 
 		double lo = 0, hi = target + 200_000; // generous upper bound; capped by caller
 		for (int i = 0; i < 40; i++) {
 			double mid = (lo + hi) / 2;
-			double oti = federal.compute(filing, over65, baseOrdinary + mid, ss, qualified, realScale)
+			double oti = federal.compute(filing, over65, baseOrdinary + mid, ss, qualified, realScale, taxYear)
 				.ordinaryTaxableIncome();
 			if (oti < target) lo = mid; else hi = mid;
 		}

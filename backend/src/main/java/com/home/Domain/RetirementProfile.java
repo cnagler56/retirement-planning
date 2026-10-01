@@ -54,6 +54,11 @@ public class RetirementProfile {
 	@JsonProperty
 	private int retirementAge;
 
+	/** Spouse's retirement age, in the spouse's own years (0 = use the household's).
+	 *  A spouse-owned paycheck stops at this age instead of the primary's. */
+	@JsonProperty
+	private int spouseRetirementAge;
+
 	/** Amount already saved toward retirement, today. */
 	@JsonProperty
 	private double currentSavings;
@@ -246,6 +251,9 @@ public class RetirementProfile {
 	public int getRetirementAge() { return retirementAge; }
 	public void setRetirementAge(int retirementAge) { this.retirementAge = retirementAge; }
 
+	public int getSpouseRetirementAge() { return spouseRetirementAge; }
+	public void setSpouseRetirementAge(int spouseRetirementAge) { this.spouseRetirementAge = spouseRetirementAge; }
+
 	public double getCurrentSavings() { return currentSavings; }
 	public void setCurrentSavings(double currentSavings) { this.currentSavings = currentSavings; }
 
@@ -258,6 +266,18 @@ public class RetirementProfile {
 	public double getStartingPortfolioTotal() {
 		double buckets = Math.max(0, tradBalance) + Math.max(0, rothBalance) + Math.max(0, taxableBalance);
 		return Math.max(Math.max(0, currentSavings), buckets);
+	}
+
+	/**
+	 * True when an income stream is marked as a paycheck (stops at retirement). The
+	 * models then simulate the working years' full cash flow instead of assuming
+	 * earnings exactly cover living costs.
+	 */
+	@JsonIgnore
+	public boolean hasPaycheck() {
+		if (incomeStreams == null) return false;
+		for (IncomeStream s : incomeStreams) if (s.isEndsAtRetirement() && s.getAnnualAmount() > 0) return true;
+		return false;
 	}
 
 	public double getMonthlyContribution() { return monthlyContribution; }

@@ -44,6 +44,18 @@ public class MonteCarloService {
 		return need;
 	}
 
+	/** What each working year adds to the portfolio, indexed by the age at the year's END
+	 *  (matching the trial loop). With no paycheck modeled it's just the contribution. */
+	private double[] workingAddByAge(RetirementProfile p, int currentAge, int retirementAge, int planThrough) {
+		double[] add = new double[planThrough + 1];
+		boolean modelWorking = p.hasPaycheck();
+		RetirementCashFlow.Calc cash = modelWorking ? cashFlow.forProfile(p, planThrough) : null;
+		for (int age = currentAge + 1; age <= retirementAge && age <= planThrough; age++) {
+			add[age] = modelWorking ? cash.workingYearPortfolioChange(age - 1) : p.getMonthlyContribution() * 12;
+		}
+		return add;
+	}
+
 	public MonteCarloResult run(MonteCarloRequest req) {
 		RetirementProfile p = req.profile();
 		int trials = req.trials() != null && req.trials() > 0 ? Math.min(req.trials(), MAX_TRIALS) : 1000;
@@ -56,10 +68,9 @@ public class MonteCarloService {
 
 		double meanNominal = p.getAnnualReturnRate();
 		double inflation = p.getInflationRate();
-		double annualContribution = p.getMonthlyContribution() * 12;
-
-		// Cash-flow needs are deterministic across trials, so compute them once.
+		// Cash flows are deterministic across trials, so compute them once.
 		double[] netNeed = netNeedByAge(p, retirementAge, planThrough);
+		double[] workingAdd = workingAddByAge(p, currentAge, retirementAge, planThrough);
 
 		Random random = new Random(SEED);
 		int successes = 0;
@@ -80,7 +91,7 @@ public class MonteCarloService {
 				balance *= (1 + realReturn);
 
 				if (age <= retirementAge) {
-					balance += annualContribution;
+					balance = Math.max(0, balance + workingAdd[age]);
 				} else {
 					balance -= netNeed[age]; // spending − guaranteed income; negative surplus reinvested
 				}
@@ -139,9 +150,8 @@ public class MonteCarloService {
 		int years = planThrough - currentAge;
 		double meanNominal = p.getAnnualReturnRate();
 		double inflation = p.getInflationRate();
-		double annualContribution = p.getMonthlyContribution() * 12;
-
 		double[] netNeed = netNeedByAge(p, retirementAge, planThrough);
+		double[] workingAdd = workingAddByAge(p, currentAge, retirementAge, planThrough);
 
 		Random random = new Random(SEED);
 		int successes = 0;
@@ -153,7 +163,7 @@ public class MonteCarloService {
 				double realReturn = (1 + (meanNominal + volatility * random.nextGaussian())) / (1 + inflation) - 1;
 				balance *= (1 + realReturn);
 				if (age <= retirementAge) {
-					balance += annualContribution;
+					balance = Math.max(0, balance + workingAdd[age]);
 				} else {
 					balance -= netNeed[age];
 				}

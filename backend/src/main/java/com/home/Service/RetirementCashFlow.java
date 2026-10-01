@@ -4,9 +4,15 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.home.Domain.ExpenseItem;
+import com.home.Domain.IncomeStream;
 import com.home.Domain.RetirementProfile;
+import com.home.tax.FederalTaxService;
 import com.home.tax.LoanSchedule;
+import com.home.tax.TaxConstants;
+import com.home.tax.TaxConstants.Filing;
 
 /**
  * The single source of truth for a retirement year's cash flow, in today's
@@ -27,14 +33,28 @@ import com.home.tax.LoanSchedule;
  * Callers that model income tax (the ledger) add it on top of {@link
  * AnnualCashFlow#netNeed()}; callers that don't (projection, Monte Carlo) use
  * netNeed() directly, exactly as they did before.
+ *
+ * Working years: when the profile has a paycheck (an income stream marked
+ * "stops at retirement"), the years before retirement are real cash-flow years
+ * too — the paycheck and other income against the same spending, with income
+ * and payroll tax, the monthly contribution deferred pre-tax, and any surplus
+ * saved. {@link Calc#workingYearPortfolioChange} gives that for the tax-free
+ * projection and Monte Carlo; the ledger runs its own bucket-aware version.
  */
 @Service
 public class RetirementCashFlow {
 
 	private final SocialSecurityService socialSecurity;
+	private final FederalTaxService federal;
+
+	@Autowired
+	public RetirementCashFlow(SocialSecurityService socialSecurity, FederalTaxService federal) {
+		this.socialSecurity = socialSecurity;
+		this.federal = federal;
+	}
 
 	public RetirementCashFlow(SocialSecurityService socialSecurity) {
-		this.socialSecurity = socialSecurity;
+		this(socialSecurity, new FederalTaxService());
 	}
 
 	/**
@@ -45,6 +65,7 @@ public class RetirementCashFlow {
 	 *       itemized-plus-discretionary remainder shown as its own ledger column.</li>
 	 *   <li>{@code taxableStreams} — the taxable subset of {@code streams}, for the
 	 *       ledger's tax calculation.</li>
+	 *   <li>{@code payrollTax} — FICA on paycheck streams (0 once retired).</li>
 	 * </ul>
 	 */
 	public record AnnualCashFlow(
@@ -57,7 +78,8 @@ public class RetirementCashFlow {
 			double ltc,
 			double loanPayment,
 			double loanBalance,
-			double oneTimeNet) {
+			double oneTimeNet,
+			double payrollTax) {
 
 		/** Total spending to fund this year (all-in budget plus the LTC shock). */
 		public double allInSpending() {
@@ -111,7 +133,47 @@ public class RetirementCashFlow {
 			double allIn = Math.max(goal, itemizedAt(age) + healthcare + loanPayment);
 			double living = allIn - healthcare - loanPayment;
 			return new AnnualCashFlow(ss, pension, streams, taxableStreams,
-				living, healthcare, ltc, loanPayment, loanBalance, oneTimeNetAt(age));
+				living, healthcare, ltc, loanPayment, loanBalance, oneTimeNetAt(age), payrollTaxAt(age));
+		}
+
+		/**
+		 * How a working year changes the portfolio, before investment growth, for the
+		 * models that don't track tax buckets (projection, Monte Carlo): income minus
+		 * spending minus income and payroll tax. Positive = saved (this already includes
+		 * the pre-tax monthly contribution, which is spent into the portfolio); negative
+		 * = the paycheck fell short and savings covered it.
+		 */
+		public double workingYearPortfolioChange(int age) {
+			AnnualCashFlow cf = at(age);
+			double contribution = p.getMonthlyContribution() * 12;
+			return -cf.netNeed() - workingYearIncomeTax(age, cf, contribution) - cf.payrollTax();
+		}
+
+		/** Federal + flat state income tax for a working year; the contribution is a pre-tax deferral. */
+		private double workingYearIncomeTax(int age, AnnualCashFlow cf, double contribution) {
+			int t = Math.max(0, age - p.getCurrentAge());
+			double realScale = Math.pow(1 + p.getInflationRate(), -t);
+			boolean widowed = SocialSecurityService.isWidowed(p, age);
+			boolean married = !"SINGLE".equalsIgnoreCase(p.getFilingStatus());
+			Filing filing = married && !widowed ? Filing.MARRIED_JOINT : Filing.SINGLE;
+			int spouseAge = age + p.getSpouseAge() - p.getCurrentAge();
+			int over65 = (age >= 65 ? 1 : 0) + (filing == Filing.MARRIED_JOINT && spouseAge >= 65 ? 1 : 0);
+			double ordinary = Math.max(0, cf.taxableStreams() - contribution);
+			var f = federal.compute(filing, over65, ordinary, cf.socialSecurity(), 0, realScale, TaxConstants.TAX_YEAR + t);
+			double state = p.getStateTaxRate() * Math.max(0, f.taxableIncome() - f.taxableSocialSecurity());
+			return f.totalTax() + state;
+		}
+
+		/** FICA on paycheck streams active at an age (each stream treated as one earner).
+		 *  Each paycheck stops at its own owner's retirement age. */
+		private double payrollTaxAt(int age) {
+			if (p.getIncomeStreams() == null) return 0;
+			double total = 0;
+			for (IncomeStream s : p.getIncomeStreams()) {
+				if (!s.isEndsAtRetirement() || !s.isTaxable() || paycheckEnded(s, age)) continue;
+				total += TaxConstants.payrollTax(streamAt(s, age));
+			}
+			return total;
 		}
 
 		/** Net signed one-time cash flow landing on an age (inflows − outflows). */
@@ -137,15 +199,34 @@ public class RetirementCashFlow {
 		 *  translated onto the primary timeline. */
 		private double streamIncomeAt(int age, boolean taxableOnly) {
 			if (p.getIncomeStreams() == null) return 0;
-			int currentAge = p.getCurrentAge();
-			int spouseOffset = p.getSpouseAge() - currentAge; // spouse age = primary age + offset
 			double total = 0;
 			for (var s : p.getIncomeStreams()) {
 				if (taxableOnly && !s.isTaxable()) continue;
-				int ownerAge = s.isSpouseOwned() ? age + spouseOffset : age;
-				total += s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate());
+				total += streamAt(s, age);
 			}
 			return total;
+		}
+
+		/** One stream's today's-dollars income at a primary age. A paycheck stops at its
+		 *  owner's retirement age (the spouse's own age for a spouse-owned paycheck),
+		 *  whatever the stream's own end age says. */
+		private double streamAt(IncomeStream s, int age) {
+			if (s.isEndsAtRetirement() && paycheckEnded(s, age)) return 0;
+			int currentAge = p.getCurrentAge();
+			int ownerAge = s.isSpouseOwned() ? age + (p.getSpouseAge() - currentAge) : age;
+			return s.realIncomeAt(ownerAge, age - currentAge, p.getInflationRate(), s.isEndsAtRetirement());
+		}
+
+		/** Whether a paycheck has stopped by a given primary age — at the spouse's own
+		 *  retirement age for a spouse-owned paycheck (falling back to the household's),
+		 *  otherwise the primary's. */
+		private boolean paycheckEnded(IncomeStream s, int age) {
+			if (s.isSpouseOwned()) {
+				int spouseRet = p.getSpouseRetirementAge() > 0 ? p.getSpouseRetirementAge() : p.getRetirementAge();
+				int spouseAge = age + (p.getSpouseAge() - p.getCurrentAge());
+				return spouseAge >= spouseRet;
+			}
+			return age >= p.getRetirementAge();
 		}
 
 		/** Today's-dollars healthcare at a retirement-year age; grows in real terms

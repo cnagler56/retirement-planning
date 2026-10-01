@@ -272,7 +272,7 @@ export default function LifetimeRothPage() {
 
               <p className="text-xs opacity-50">
                 Today&apos;s dollars, {percent(input.investmentReturn)} return, {percent(input.inflationRate)} inflation.
-                Models 2025 federal brackets, RMDs (start age {result.rmdStartAge}), Social Security taxation, NIIT,
+                Models 2026 federal brackets, the senior deduction (2025–2028 only), RMDs (start age {result.rmdStartAge}), Social Security taxation, NIIT,
                 IRMAA, ACA subsidies, the survivor filing-status change, and a flat state tax — with the non-indexed
                 SS/IRMAA/NIIT thresholds eroding in real terms over time. Pension and Social Security fund living
                 expenses (tax inputs only); RMDs not needed for spending are reinvested; taxes are paid from the

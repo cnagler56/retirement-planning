@@ -67,6 +67,9 @@ export interface IncomeStream {
   owner: IncomeOwner;
   /** Kind of income; everything but TAX_FREE is taxed as ordinary income. */
   type: IncomeType;
+  /** A paycheck: stops at the plan's retirement age (overriding endAge), and makes the
+   *  models simulate the working years' full cash flow. */
+  endsAtRetirement?: boolean;
 }
 
 /** An itemized retirement expense (base living, travel, mortgage, one-off…). */
@@ -168,6 +171,12 @@ export interface LedgerRow {
   endTaxable: number;
   endTotal: number;
   shortfall: boolean;
+  /** A pre-retirement working year (only when a paycheck is modeled). */
+  working: boolean;
+  /** FICA on paychecks (working years). */
+  payrollTax: number;
+  /** Added to savings: the pre-tax contribution plus surplus income reinvested. */
+  saved: number;
 }
 
 export interface LedgerResult {
@@ -215,6 +224,8 @@ export interface RetirementProfile {
   /** Derived from birthDate; kept fresh on load. Read-only in practice. */
   currentAge: number;
   retirementAge: number;
+  /** Spouse's own retirement age (0 = use the household's). A spouse paycheck ends here. */
+  spouseRetirementAge: number;
   currentSavings: number;
   monthlyContribution: number;
   annualReturnRate: number;
@@ -407,6 +418,7 @@ export const DEFAULT_PROFILE: RetirementProfile = {
   spouseBirthDate: '1965-01-01',
   currentAge: ageFromBirthDate('1965-01-01'),
   retirementAge: 65,
+  spouseRetirementAge: 65,
   currentSavings: 50000,
   monthlyContribution: 800,
   annualReturnRate: 0.07,

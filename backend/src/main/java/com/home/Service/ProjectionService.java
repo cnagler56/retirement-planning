@@ -15,7 +15,8 @@ import com.home.Domain.RetirementProfile;
  *
  * Two phases, simulated monthly:
  *  1. Accumulation (current age → retirement age): the portfolio grows at the
- *     real return and the monthly contribution is added.
+ *     real return and the monthly contribution is added — or, when a paycheck is
+ *     modeled, the working year's full after-tax surplus (or shortfall).
  *  2. Retirement (retirement age → planning horizon): the portfolio keeps
  *     growing at the real return, Social Security income (starting at the claim
  *     age) offsets the spending goal, and the remaining gap is withdrawn. If
@@ -60,6 +61,9 @@ public class ProjectionService {
 			ssMonthly = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claimAge);
 		}
 		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThroughAge);
+		// With a paycheck modeled, working years are real cash-flow years (surplus saved,
+		// shortfall drawn); otherwise earnings are assumed to cover living costs exactly.
+		boolean modelWorking = p.hasPaycheck();
 
 		double balance = p.getStartingPortfolioTotal();
 		double contributionsTotal = 0.0;
@@ -79,11 +83,13 @@ public class ProjectionService {
 			// spread evenly across the 12 months so the balance still compounds monthly.
 			RetirementCashFlow.AnnualCashFlow cf = age >= retirementAge ? cash.at(age) : null;
 			double withdrawalMonthly = cf != null ? cf.netNeed() / 12.0 : 0; // negative = surplus reinvested
+			double workingMonthly = modelWorking && age < retirementAge ? cash.workingYearPortfolioChange(age) / 12.0 : 0;
 
 			for (int month = 0; month < 12; month++) {
 				balance *= (1 + realMonthly);
 				if (age < retirementAge) {
-					balance += p.getMonthlyContribution();
+					balance += modelWorking ? workingMonthly : p.getMonthlyContribution();
+					if (balance < 0) balance = 0;
 					yearContribution += p.getMonthlyContribution();
 					contributionsTotal += p.getMonthlyContribution();
 				} else {

@@ -5,8 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   api,
   DEFAULT_CONVERSION_TAX,
+  type Account,
   type ConversionTaxRequest,
   type ConversionTaxResult,
+  type LedgerRow,
+  type RetirementProfile,
 } from '@/src/lib/api';
 import { useUser } from '@/src/lib/UserContext';
 import { loadProfileWithAccounts } from '@/src/lib/profileStore';
@@ -20,13 +23,47 @@ export default function RothPage() {
   const [input, setInput] = useState<ConversionTaxRequest>(DEFAULT_CONVERSION_TAX);
   const [result, setResult] = useState<ConversionTaxResult | null>(null);
   const [seeded, setSeeded] = useState(false);
+  const [profile, setProfile] = useState<RetirementProfile | null>(null);
+  const [planRows, setPlanRows] = useState<LedgerRow[] | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Prefill from the saved household profile once signed in.
+  // Prefill from the saved household profile, and fetch the year-by-year plan so its
+  // income for any age can be pulled into the converter.
   useEffect(() => {
     if (!user || seeded) return;
-    loadProfileWithAccounts(user.userId).then(({ profile: p }) => { if (p) setInput(conversionTaxDefaults(p)); }).catch(() => {}).finally(() => setSeeded(true));
+    loadProfileWithAccounts(user.userId).then(({ profile: p }) => {
+      if (!p) return;
+      setProfile(p);
+      setInput(conversionTaxDefaults(p));
+      api.ledger(p).then((l) => setPlanRows(l.rows)).catch(() => {});
+      // Default the amount to convert to the smallest pre-tax account — a concrete
+      // "convert this whole account" starting point rather than an arbitrary figure.
+      api.listAccounts().then((accts) => {
+        const withBalance = accts.filter((a) => a.balance > 0);
+        const pretax = withBalance.filter((a) => a.type === 'TRADITIONAL');
+        const pool = pretax.length ? pretax : withBalance;
+        if (pool.length) {
+          const smallest = Math.min(...pool.map((a) => a.balance));
+          setInput((prev) => ({ ...prev, conversionAmount: Math.round(smallest) }));
+        }
+      }).catch(() => {});
+    }).catch(() => {}).finally(() => setSeeded(true));
   }, [user, seeded]);
+
+  // Pull Social Security and other ordinary income from the plan's row for an age.
+  function usePlanYear(age: number) {
+    const row = planRows?.find((r) => r.age === age);
+    if (!row || !profile) return;
+    const isMarried = profile.filingStatus === 'MARRIED_JOINT';
+    const spouseOffset = isMarried && profile.spouseAge > 0 ? profile.spouseAge - profile.currentAge : 0;
+    setInput((prev) => ({
+      ...prev,
+      age,
+      spouseAge: age + spouseOffset,
+      annualSocialSecurity: Math.round(row.socialSecurity),
+      otherOrdinaryIncome: Math.round(row.pension + row.rmd + row.otherIncome),
+    }));
+  }
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -58,6 +95,23 @@ export default function RothPage() {
       <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
         {/* Inputs */}
         <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+          {planRows && planRows.length > 0 && (
+            <label className="block rounded-lg border border-cyan-500/40 bg-cyan-500/5 p-3 text-sm">
+              <span className="mb-1 block font-medium">Pull my income from a plan year</span>
+              <select defaultValue="" onChange={(e) => { if (e.target.value) usePlanYear(Number(e.target.value)); }}
+                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40">
+                <option value="" className="bg-white text-black dark:bg-neutral-900 dark:text-white">Pick an age…</option>
+                {planRows.map((r) => (
+                  <option key={r.age} value={r.age} className="bg-white text-black dark:bg-neutral-900 dark:text-white">Age {r.age}</option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs opacity-55">
+                Fills Social Security and other ordinary income (pension + RMD + income streams) from your
+                year-by-year plan for that age. Then set an amount to convert.
+              </span>
+            </label>
+          )}
+
           <div className="text-sm">
             <span className="mb-1 block opacity-70">Filing status</span>
             <div className="grid grid-cols-2 gap-2">
@@ -81,7 +135,7 @@ export default function RothPage() {
             onChange={set('qualifiedIncome')} min={0} step={1000} prefix="$" />
           <NumberField label="Amount to convert" value={input.conversionAmount}
             onChange={set('conversionAmount')} min={0} step={5000} prefix="$"
-            hint="A starting example — set how much you'd move from pre-tax to Roth this year." />
+            hint="Defaults to your smallest pre-tax account. Change it to try other amounts." />
         </form>
 
         {/* Results */}
@@ -136,7 +190,8 @@ export default function RothPage() {
               </div>
 
               <p className="text-xs opacity-50">
-                Uses 2025 federal brackets, the standard deduction (incl. the age-65 addition), the IRS
+                Uses 2026 federal brackets, the standard deduction (incl. the age-65 addition), the
+                2025–2028 senior deduction ($6,000 per person 65+, phased out above $75k/$150k MAGI), the IRS
                 Social Security worksheet, capital-gains stacking, and the 3.8% Net Investment Income Tax.
                 Excludes state tax, IRMAA, AMT, and credits (see the lifetime strategy for those). Not tax advice.
               </p>

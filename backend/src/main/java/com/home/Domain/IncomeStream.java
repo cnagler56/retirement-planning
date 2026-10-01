@@ -15,6 +15,12 @@ import jakarta.persistence.Embeddable;
  * {@code type} that determines whether it is taxable ordinary income; only
  * TAX_FREE (Roth distributions, return of capital, municipal interest) is
  * treated as non-taxable.
+ *
+ * A stream marked {@code endsAtRetirement} is a paycheck: it stops at the plan's
+ * retirement age (the household's), overriding its own end age, so moving the
+ * retirement age moves the paycheck with it. Its presence also switches the
+ * models to simulate the working years' full cash flow (income − spending −
+ * taxes, surplus saved) instead of just adding the monthly contribution.
  */
 @Embeddable
 public class IncomeStream {
@@ -29,6 +35,7 @@ public class IncomeStream {
 	private boolean inflationAdjusted;
 	private String owner;        // SELF (default) or SPOUSE — whose age the ages refer to
 	private String type;         // EMPLOYMENT, RENTAL, BUSINESS, PENSION, ANNUITY, TAXABLE_OTHER, TAX_FREE
+	private Boolean endsAtRetirement; // nullable so existing rows load; null = false
 
 	public IncomeStream() {}
 
@@ -40,7 +47,12 @@ public class IncomeStream {
 	 * @param yearsElapsed plan years from now (for deflating a fixed-nominal amount)
 	 */
 	public double realIncomeAt(int ownerAge, int yearsElapsed, double inflation) {
-		int end = endAge > 0 ? endAge : Integer.MAX_VALUE;
+		return realIncomeAt(ownerAge, yearsElapsed, inflation, false);
+	}
+
+	/** @param ignoreEndAge true for a paycheck whose end is set by the retirement age instead */
+	public double realIncomeAt(int ownerAge, int yearsElapsed, double inflation, boolean ignoreEndAge) {
+		int end = endAge > 0 && !ignoreEndAge ? endAge : Integer.MAX_VALUE;
 		if (annualAmount <= 0 || ownerAge < startAge || ownerAge > end) return 0;
 		if (inflationAdjusted) return annualAmount;
 		return annualAmount / Math.pow(1 + inflation, Math.max(0, yearsElapsed));
@@ -55,6 +67,9 @@ public class IncomeStream {
 	public boolean isSpouseOwned() {
 		return SPOUSE.equalsIgnoreCase(owner);
 	}
+
+	public boolean isEndsAtRetirement() { return Boolean.TRUE.equals(endsAtRetirement); }
+	public void setEndsAtRetirement(Boolean endsAtRetirement) { this.endsAtRetirement = endsAtRetirement; }
 
 	public String getLabel() { return label; }
 	public void setLabel(String label) { this.label = label; }
