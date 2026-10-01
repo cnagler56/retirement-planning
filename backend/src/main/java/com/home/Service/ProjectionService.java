@@ -61,9 +61,9 @@ public class ProjectionService {
 			ssMonthly = socialSecurity.monthlyBenefit(p.getBirthYear(), p.getSsMonthlyAtFra(), claimAge);
 		}
 		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThroughAge);
-		// With a paycheck modeled, working years are real cash-flow years (surplus saved,
-		// shortfall drawn); otherwise earnings are assumed to cover living costs exactly.
-		boolean modelWorking = p.hasPaycheck();
+		// Before retirement, income is assumed to cover expenses, so the portfolio just
+		// grows by the return plus the monthly contribution. Withdrawals begin at
+		// retirement, when the cash flow nets any still-working spouse's income.
 
 		double balance = p.getStartingPortfolioTotal();
 		double contributionsTotal = 0.0;
@@ -83,12 +83,11 @@ public class ProjectionService {
 			// spread evenly across the 12 months so the balance still compounds monthly.
 			RetirementCashFlow.AnnualCashFlow cf = age >= retirementAge ? cash.at(age) : null;
 			double withdrawalMonthly = cf != null ? cf.netNeed() / 12.0 : 0; // negative = surplus reinvested
-			double workingMonthly = modelWorking && age < retirementAge ? cash.workingYearPortfolioChange(age) / 12.0 : 0;
 
 			for (int month = 0; month < 12; month++) {
 				balance *= (1 + realMonthly);
 				if (age < retirementAge) {
-					balance += modelWorking ? workingMonthly : p.getMonthlyContribution();
+					balance += p.getMonthlyContribution();
 					if (balance < 0) balance = 0;
 					yearContribution += p.getMonthlyContribution();
 					contributionsTotal += p.getMonthlyContribution();

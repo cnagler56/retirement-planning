@@ -80,21 +80,17 @@ public class LedgerService {
 			taxable = p.getCurrentSavings();
 		}
 		double annualContribution = p.getMonthlyContribution() * 12;
-		// With a paycheck modeled, the working years run through the full year loop below
-		// (income, spending, income + payroll tax, surplus saved). Otherwise they are
-		// accumulation years: growth plus the contribution, earnings assumed to cover living.
-		boolean modelWorking = p.hasPaycheck();
 
 		RetirementCashFlow.Calc cash = cashFlow.forProfile(p, planThrough);
 
 		List<LedgerRow> rows = new ArrayList<>();
 		Integer moneyLastsToAge = null;
 
-		// Accumulation years without a modeled paycheck: earnings cover living, the
-		// contribution is saved to pre-tax, and the portfolio just grows. Emit a row per
-		// year so the growing balance is shown, instead of the table jumping straight to
-		// the retirement age. (With a paycheck, the main loop simulates these years in full.)
-		int firstYear = modelWorking ? currentAge : retirementAge;
+		// Accumulation years: before retirement, income is assumed to cover living, the
+		// contribution is saved to pre-tax, and the portfolio just grows by the return.
+		// Emit a row per year so the growing balance shows. Withdrawals begin at
+		// retirement, where the main loop nets any still-working spouse's income.
+		int firstYear = retirementAge;
 		for (int age = currentAge; age < firstYear; age++) {
 			double startBalance = trad + roth + taxable;
 			trad = trad * (1 + realReturn) + annualContribution;

@@ -45,13 +45,13 @@ public class MonteCarloService {
 	}
 
 	/** What each working year adds to the portfolio, indexed by the age at the year's END
-	 *  (matching the trial loop). With no paycheck modeled it's just the contribution. */
+	 *  (matching the trial loop). Before retirement, income is assumed to cover expenses,
+	 *  so the portfolio just grows by the return plus the monthly contribution. */
 	private double[] workingAddByAge(RetirementProfile p, int currentAge, int retirementAge, int planThrough) {
 		double[] add = new double[planThrough + 1];
-		boolean modelWorking = p.hasPaycheck();
-		RetirementCashFlow.Calc cash = modelWorking ? cashFlow.forProfile(p, planThrough) : null;
+		double annualContribution = p.getMonthlyContribution() * 12;
 		for (int age = currentAge + 1; age <= retirementAge && age <= planThrough; age++) {
-			add[age] = modelWorking ? cash.workingYearPortfolioChange(age - 1) : p.getMonthlyContribution() * 12;
+			add[age] = annualContribution;
 		}
 		return add;
 	}
